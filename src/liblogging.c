@@ -1,6 +1,6 @@
 
 
-#include "liblogging.h"
+#include "headers/liblogging.h"
 
 EnumTriple EAI_ERROR_VALUES[] = {
 	MAKE_TRIPLE(EAI_BADFLAGS, "Invalid value for `ai_flags' field."),
@@ -174,35 +174,54 @@ void tprintf(const char *fmt, ...) {
 	free(hi); //free memory obtained with malloc
 }
 
-const char* getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]){
+const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]){
 	for(int i = 0; i < enumSize; i++) {
 		if(value == enumValues[i].value)
 			return enumValues[i].name;
 	}
 	return "Unknown Value";
 }
-const char* getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]){
+const char* _getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]){
 	for(int i = 0; i < enumSize; i++) {
 		if(value == enumValues[i].value)
 			return enumValues[i].name;
 	}
 	return "Unknown Value";
+}
+const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], char** description){
+	for(int i = 0; i < enumSize; i++) {
+		if(value == enumValues[i].value){
+			(*description) = enumValues[i].description;
+			return enumValues[i].name;
+		}
+	}
+	return "Unknown Value";
+}
+void printAddrinfoList(struct addrinfo *addrinfo){
+	struct addrinfo* next = addrinfo;
+	int              count = 1;
+	do {
+		tprintf("Addrinfo #%d: \n", next, count++);
+		INCTAB(){
+			next = printAddrinfo(next);
+		}
+	} while(next != NULL);
 }
 
-struct addrinfo* addrinfoToString(struct addrinfo* addressinfo){
+struct addrinfo* printAddrinfo(struct addrinfo* addressinfo){
 	struct addrinfo info = *addressinfo;
 	struct addrinfo *addr = addressinfo;
 	tprintf("ai_flags: %d\n", info.ai_flags);
-	INCTAB(){
+	INCTAB() {
 		listApplicableEntriesTriple(info.ai_flags, ARR_SIZE(AI_FLAGS_VALUES), AI_FLAGS_VALUES, true);
 	}
-	tprintf("ai_family:    %d (%s)\n", info.ai_family, getEnumValue(info.ai_family, ARR_SIZE(AF_ENUM_VALUES), AF_ENUM_VALUES));
-	tprintf("ai_socktype:  %d (%s)\n", addr->ai_socktype, getEnumValue(info.ai_socktype, ARR_SIZE(SOCK_ENUM_VALUES), SOCK_ENUM_VALUES));
-	tprintf("ai_protocol:  %d (%s)\n", addr->ai_protocol, getEnumValue(info.ai_protocol, ARR_SIZE(PROTO_ENUM_VALUES), PROTO_ENUM_VALUES));
+	tprintf("ai_family:    %d (%s)\n", info.ai_family, getEnumValue(info.ai_family, AF_ENUM_VALUES));
+	tprintf("ai_socktype:  %d (%s)\n", addr->ai_socktype, getEnumValue(info.ai_socktype, SOCK_ENUM_VALUES));
+	tprintf("ai_protocol:  %d (%s)\n", addr->ai_protocol, getEnumValue(info.ai_protocol, PROTO_ENUM_VALUES));
 	tprintf("ai_addrlen:   %d\n", info.ai_addrlen);
 	//tprintf("ai_addr: *%p\n", info.ai_addr);
-	INCTAB(){
-		sockaddrToString(info.ai_addrlen, info.ai_addr);
+	INCTAB() {
+		printSockaddr(info.ai_addrlen, info.ai_addr);
 	}
 	tprintf("ai_canonname: %s\n", info.ai_canonname);
 	//tprintf("ai_next: *%p\n", info.ai_next);
@@ -210,9 +229,7 @@ struct addrinfo* addrinfoToString(struct addrinfo* addressinfo){
 	return info.ai_next;
 }
 
-void sockaddrToString(int length, struct sockaddr* sockaddrinfo){
-	ushort          fam  = sockaddrinfo->sa_family;
-
+void printSockaddr(int length, struct sockaddr* sockaddrinfo){
 	char hostname[NI_MAXHOST], hostnumb[NI_MAXHOST];
 	char servname[NI_MAXSERV], servnumb[NI_MAXSERV];
 
@@ -225,34 +242,26 @@ void sockaddrToString(int length, struct sockaddr* sockaddrinfo){
 	int res_name = getnameinfo(sockaddrinfo, length, hostname, NI_MAXHOST, servname, NI_MAXSERV, 0);
 	int res_numb = getnameinfo(sockaddrinfo, length, hostnumb, NI_MAXHOST, servnumb, NI_MAXSERV, NI_NUMERICHOST | NI_NUMERICSERV);
 
-	bool hostSame = strcmp(hostname, hostnumb) == 0;
-	bool servSame = strcmp(servname, servnumb) == 0;
-	tprintf("%s:%s%s%s%s%s%s\n",
-		hostname, servname, //Initial socket
-		(!hostSame || !servSame) ? " (" : "", //Add opening paren if either is different
-		!hostSame ? hostnumb : "", //Add IP if hostname != hostnumb
-		!servSame ? ":" : "", //Add colon for port, to differentiate between IP and port
-		!servSame ? servnumb : "", //Add port if servname != servnumb
-		(!hostSame || !servSame) ? ")" : "" //Add closing paren if either is different
-		);
-
-	//char ip[1024];
-	//const char* result = inet_ntop(fam, &info4.sin_addr, ip, sizeof(ip));
 	if(res_name != 0 || res_numb != 0){
 		tprintf("Error with result: (%d) %s\n", errno, strerror(errno));
+		return;
 	}
-/*
-	switch(fam){
-		case AF_INET:
-			tprintf("AF_INET: %s\n", result);
-			break;
-		case AF_INET6:
-			tprintf("AF_INET6: %s\n", result);
-			break;
-		default:
-			tprintf("Unrecongized family: %d\n", fam);
-	}
-	*/
+
+	bool hostSame = strcmp(hostname, hostnumb) == 0;
+	bool servSame = strcmp(servname, servnumb) == 0;
+	tprintf("%s:%s", hostname, servname);
+	
+	if(!hostSame || !servSame){
+		printf(" (");
+		if(!hostSame)
+			printf("%s", hostnumb);
+		if(!servSame){
+			printf(":%s", servnumb);
+		}
+		printf(")\n");
+	} else
+		printf("\n");
+
 }
 
 

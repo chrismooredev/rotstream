@@ -31,10 +31,7 @@
 
 int tablevel;
 
-#define TAB(EXPR) \
-	tablevel++;   \
-	EXPR;         \
-	tablevel--;
+
 
 #define MAKE_TUPLE(x) {.value = x, .name = #x}
 #define MAKE_TRIPLE(x, y) {.value = x, .name = #x, .description = y}
@@ -107,10 +104,15 @@ EnumTuple PROTO_ENUM_VALUES[22 WITHLIN(+4)];
 // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
 void tprintf(const char* fmt, ...);
 // Get the first value in the enum list, where `value` is equal to EnumValue
-const char* getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]);
-const char* getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]);
-struct addrinfo* addrinfoToString(struct addrinfo* addressinfo);
-void sockaddrToString(int length, struct sockaddr* sockaddrinfo);
+#define getEnumValue(value, enumValues) _getEnumValue(value, ARR_SIZE(enumValues), enumValues)
+const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]);
+#define getEnumValueName(value, enumValues) _getEnumValueName(value, ARR_SIZE(enumValues), enumValues)
+const char* _getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]);
+#define getEnumTriple(value, enumValues, description) _getEnumTriple(value, ARR_SIZE(enumValues), enumValues, description)
+const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], char** description);
+void printAddrinfoList(struct addrinfo* addrinfo);
+struct addrinfo* printAddrinfo(struct addrinfo* addressinfo);
+void printSockaddr(int length, struct sockaddr* sockaddrinfo);
 
 void listApplicableEntriesTriple(int value, size_t enumSize, EnumTriple enumValues[], bool print_num);
 void listApplicableEntriesTuple(int value, size_t enumSize, EnumTuple enumValues[], bool print_num);

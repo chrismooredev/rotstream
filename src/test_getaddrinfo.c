@@ -1,4 +1,4 @@
-/*#include <errno.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -11,8 +11,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-*/
-#include "liblogging.h"
+
+
+#include "headers/liblogging.h"
 
 int main(int argc, char* argv[]){
 	//struct in_addr  try4;
@@ -23,21 +24,12 @@ int main(int argc, char* argv[]){
 	hints.ai_flags = AI_CANONNAME;
 	int status = getaddrinfo(argv[1], argv[2], &hints, &AddressInfo);
 	if(status == 0) {
-		//success
-		struct addrinfo* next = AddressInfo;
-		int              count = 1;
-		do {
-			printf("(*%p) %d: \n", next, count++);
-			//tablevel++;
-			INCTAB(){
-				next = addrinfoToString(next);
-			}
-			//tablevel--;
-		} while(next != NULL);
+		printAddrinfoList(AddressInfo);
 		return 0;
 	} else {
-		const char *err = getEnumValueName(status, ARR_SIZE(EAI_ERROR_VALUES), EAI_ERROR_VALUES);
-		printf("getaddrinfo Error: %s\n", err);
+		char *des = NULL;
+		const char *err = getEnumTriple(status, EAI_ERROR_VALUES, &des);
+		printf("getaddrinfo Error: %s (%s)\n", des, err);
 	}
 	return status;
 }
