@@ -110,6 +110,7 @@ const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]);
 const char* _getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]);
 #define getEnumTriple(value, enumValues, description) _getEnumTriple(value, ARR_SIZE(enumValues), enumValues, description)
 const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], char** description);
+
 void printAddrinfoList(struct addrinfo* addrinfo);
 struct addrinfo* printAddrinfo(struct addrinfo* addressinfo);
 void printSockaddr(int length, struct sockaddr* sockaddrinfo);

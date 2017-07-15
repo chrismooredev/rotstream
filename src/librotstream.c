@@ -63,26 +63,108 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 }
 
 int getServerSocket(struct addrinfo* server){
-	int sock = -1;
+	int sock    = -1;
 	int bindres = -1;
-	while(server != NULL){
+	int lisres  = -1;
+	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
-		sock = socket(server->ai_family, server->ai_socktype, SOCK_NONBLOCK);
+		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK, 0);
 		printf("hai\n");
-		if(sock == -1){
-			server = server->ai_next;
-			continue;
+		if(sock != -1){
+			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
+			printf("chai\n");
+			if(bindres != -1) {
+				lisres = listen(sock, 10);
+				printf("tea\n");
+				if(sock != -1 && bindres == 0 && lisres == 0)
+					break;
+			}
 		}
-		bindres = bind(sock, server->ai_addr, server->ai_addrlen);
-		if(sock == 0 && bindres == 0)
-			break;
-		server = server->ai_next;
+		if(sock == -1) {
+			int errno_cache = errno;
+			close(sock);
+			sock = -1;
+			errno = errno_cache;
+		}
+		sock   = -1;
+		bindres = -1;
+		lisres  = -1;
+		server  = server->ai_next;
 	}
-	if(sock == -1){
-		ExitErrno(7, sock);
-	} else if(bindres == -1){
-		ExitErrno(8, bindres);
+	printf("Sock: %d, Bind: %d, Listen: %d\n", sock, bindres, lisres);
+	if(sock == -1) {
+		ExitErrno(7, "socket(2)");
+	} else if(bindres == -1) {
+		ExitErrno(8, "bind(2)");
+	} else if(lisres == -1) {
+		ExitErrno(9, "listen(2)");
 	}
 
 	return sock;
+}
+int getRemoteConnection(struct addrinfo* server){
+	int sock    = -1;
+	int conres = -1;
+	while(server != NULL) {
+		//int socket(int domain, int type, int protocol);
+		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK , 0);
+		//fcntl(sock, F_SETFL, O_NONBLOCK);
+		printf("hai\n");
+		if(sock != -1 || sock == -1){
+			conres = connect(sock, server->ai_addr, server->ai_addrlen);
+			printf("chai\n");
+			if(sock != -1 && (conres == 0 || errno == EINPROGRESS))
+				break;
+		}
+		if(sock == -1) {
+			int errno_cache = errno;
+			close(sock);
+			sock = -1;
+			errno = errno_cache;
+		}
+		sock   = -1;
+		conres = -1;
+		server  = server->ai_next;
+	}
+	printf("Sock: %d, Connect: %d\n", sock, conres);
+	if(sock == -1) {
+		ExitErrno(67, "socket(2)");
+	} else if(conres == -1 && errno != EINPROGRESS) {
+		ExitErrno(68, "connect(2)");
+	}
+
+	return sock;
+}
+
+struct fdlist* AddFdPair(struct fdlistHead *head, struct fd_setcollection *fds, int client, int server){
+	struct fdlist* ent = malloc(sizeof(struct fdlist));
+
+	ent->client = client;
+	ent->server = server;
+	ent->next       = NULL;
+
+	//TODO: Enable FDs for write-checking
+	FD_SET(client, &(fds->read));
+	FD_SET(server, &(fds->read));
+
+	if(head->next == NULL)
+		head->next      = ent;
+	else {
+		struct fdlist* list = head->next;
+		struct fdlist* prev = list;
+		for(; list != NULL; prev = list, list = list->next);
+		prev->next = ent;
+	}
+
+	return ent;
+}
+void RemFdPair(struct fdlistHead* list, struct fd_setcollection* fds, struct fdlist *element){
+	
+}
+int calcNfds(struct fdlistHead *list){
+	struct fdlist* ls = list->next;
+	int            max;
+	for(max = list->listenSocket; ls != NULL; ls = ls->next)
+		max = MAX(max, MAX(ls->client, ls->server));
+	return max+1;
 }

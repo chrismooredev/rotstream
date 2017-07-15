@@ -77,17 +77,21 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 
 	//TODO: Start listening shit
 	//* Setup `select()` data
-	struct timespec timeout = { .tv_sec = 10, .tv_nsec = 0};
-	fd_set sockets;
-	int count;
+	struct fd_setcollection master_set;
+	struct fd_setcollection set;
+	struct timespec   timeout = {.tv_sec = 10, .tv_nsec = 0};
+	struct fdlistHead fd_list = {.listenSocket = listenSocket, .next = NULL};
 
 	//! FD_SET(int fd, fd_set *set);
 	//! FD_CLR(int fd, fd_set *set);
 	//! FD_ISSET(int fd, fd_set *set);
 	//! FD_ZERO(fd_set *set);
-	FD_ZERO(&sockets);
-	#define addfd(fd, list)
-	FD_SET(listenSocket, &sockets);
+	FD_ZERO(&master_set.read);
+	FD_ZERO(&master_set.write);
+	FD_ZERO(&master_set.except);
+	FD_SET(fd_list.listenSocket, &master_set.read);
+	//FD_SET(fd_list.listenSocket, &master_set.write);
+
 	/*
 	int pselect(
 		int numfds,
@@ -97,7 +101,51 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 		const struct timespec *timeout,
 		const sigset_t *sigmask);
 	*/
-	int a = pselect(/*wat*/ 0, NULL, NULL, NULL, *timeout, NULL)
+	set = master_set;
+	for(int ready = 0;;ready = pselect(calcNfds(&fd_list), &set.read, &set.write, &set.except, &timeout, NULL)) {
+		if(ready == 0){
+			tprintf("Waiting for connection...\n");
+
+		} else if(ready == -1) {
+			ExitErrno(200, false);
+		} else {
+			if(FD_ISSET(fd_list.listenSocket, &set.read)){
+				tprintf("Accepting... - ");
+				socklen_t        addrlen = 1024;
+				struct sockaddr *addr = malloc(addrlen);
+				int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
+				if(clfd == -1){
+					ExitErrno(27, false);
+				}
+
+				printSockaddr(addrlen, addr);
+				free(addr);
+
+				int svfd = getRemoteConnection(server);
+				AddFdPair(&fd_list, &master_set, clfd, svfd);
+			} else {
+				for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
+					printf("Processing %p\n", list);
+					uint8_t buf[1024];
+					size_t  obd = 0;
+					if(FD_ISSET(list->client, &set.read)) {
+						//empty_fd(list->client);
+						obd = read(list->client, buf, sizeof(buf));
+						if(obd == 0){
+
+						}
+						tprintf("Got data from client.");
+					} else if(FD_ISSET(list->server, &set.read)) {
+						empty_fd(list->server);
+						tprintf("Got data from server.");
+					}
+				}
+				tprintf("Should be handling %d sockets...\n", ready);
+			}
+			//tprintf("Should be handling %d sockets...\n", ready);
+		}
+		set = master_set;
+	}
 	//TODO: Become a plugin-able netcat/rotate data
 	//TODO: ???
 	//TODO: Profit!
@@ -107,16 +155,24 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	return 0;
 }
 
-struct fdlist {
-	int            fd;
-	struct fdlist* pair;
-	struct fdlist* next;
-};
-
-void AddFdPair(struct fdlist* list, struct fd_set* fds, int fd1, fd2)
-void AddFd(struct fdlist* list, struct fd_set* fds, int fd) {
-	
+int empty_fd(int fd){
+	uint8_t buf[1024];
+	int     count = 0;
+	while((count = read(fd, buf, sizeof(buf))) != 0)
+		;
 }
-int calcNfds(struct fdlist *list){
 
-}
+/*
+
+	articulate c'mon
+	do the thing
+
+	remove from list if EOF (read() == 0)
+	add new connections to list
+	figure out why select isn't blocking
+	figure out difference in read/write
+	kick self in foot
+	just forward data for now, rotate can come later.
+	only accept data that can be written? dunno
+
+*/

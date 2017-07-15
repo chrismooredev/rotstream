@@ -8,15 +8,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <err.h>
 
 #ifdef __linux
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 #elif __WINNT
 #include <winbase.h>
 #include <wincon.h>
@@ -42,9 +44,10 @@
 #define Exit(n, usererror)                                                                                      \
 	fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
 	exit(n);
-#define ExitErrno(n, usererror)                                       \
+#define ExitErrno(n, usererror) \
 	fprintf(stderr, "Errno: %d (%s)\n\t", errno, strerror(errno));    \
 	Exit(n, usererror);
+	//err(n, NULL);               \
 
 #define CheckAndLogError(NAME, CHECKVAL)                         \
 	if(CHECKVAL == -1 || CHECKVAL < 0) {                         \
@@ -56,12 +59,34 @@
 #define asStr(token) #token
 #define cpyStr(var, tok) case tok: var = asStr(tok)
 
+#undef max
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+struct fd_setcollection {
+	fd_set read;
+	fd_set write;
+	fd_set except;
+};
+struct fdlist {
+	int				client;
+	int				server;
+	struct fdlist*	next;
+};
+struct fdlistHead {
+	int listenSocket;
+	struct fdlist* next;
+};
+
 void rotate(int8_t rotateBy, uint8_t* buf, size_t length);
 struct in_addr ConvertIPv4(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
 size_t removeIndex(size_t index, size_t len, char** arr);
 void printListHeader(char* header, size_t len, char** list);
 void populateHints(struct addrinfo* hints, int* argc, char* argv[]);
+
 int getServerSocket(struct addrinfo* server);
+int getRemoteConnection(struct addrinfo* server);
 
-
+int calcNfds(struct fdlistHead* list);
+struct fdlist* AddFdPair(struct fdlistHead *list, struct fd_setcollection *fds, int client, int server);
+void RemFdPair(struct fdlistHead* list, struct fd_setcollection* fds, struct fdlist *element);
 #endif

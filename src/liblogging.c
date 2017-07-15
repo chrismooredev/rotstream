@@ -261,7 +261,6 @@ void printSockaddr(int length, struct sockaddr* sockaddrinfo){
 		printf(")\n");
 	} else
 		printf("\n");
-
 }
 
 
