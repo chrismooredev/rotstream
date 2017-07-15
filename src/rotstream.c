@@ -1,5 +1,5 @@
-#include "headers/librotstream.h"
 #include "headers/liblogging.h"
+#include "headers/librotstream.h"
 
 int8_t  rotateAmount;
 
@@ -77,8 +77,6 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 
 	//TODO: Start listening shit
 	//* Setup `select()` data
-	struct fd_setcollection master_set;
-	struct fd_setcollection set;
 	struct timespec   timeout = {.tv_sec = 10, .tv_nsec = 0};
 	struct fdlistHead fd_list = {.listenSocket = listenSocket, .next = NULL};
 
@@ -86,11 +84,6 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	//! FD_CLR(int fd, fd_set *set);
 	//! FD_ISSET(int fd, fd_set *set);
 	//! FD_ZERO(fd_set *set);
-	FD_ZERO(&master_set.read);
-	FD_ZERO(&master_set.write);
-	FD_ZERO(&master_set.except);
-	FD_SET(fd_list.listenSocket, &master_set.read);
-	//FD_SET(fd_list.listenSocket, &master_set.write);
 
 	/*
 	int pselect(
@@ -101,50 +94,79 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 		const struct timespec *timeout,
 		const sigset_t *sigmask);
 	*/
-	set = master_set;
+	struct fd_setcollection set = buildSets(&fd_list);
+
 	for(int ready = 0;;ready = pselect(calcNfds(&fd_list), &set.read, &set.write, &set.except, &timeout, NULL)) {
 		if(ready == 0){
 			tprintf("Waiting for connection...\n");
-
 		} else if(ready == -1) {
-			ExitErrno(200, false);
-		} else {
-			if(FD_ISSET(fd_list.listenSocket, &set.read)){
-				tprintf("Accepting... - ");
-				socklen_t        addrlen = 1024;
-				struct sockaddr *addr = malloc(addrlen);
-				int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
-				if(clfd == -1){
-					ExitErrno(27, false);
-				}
-
-				printSockaddr(addrlen, addr);
-				free(addr);
-
-				int svfd = getRemoteConnection(server);
-				AddFdPair(&fd_list, &master_set, clfd, svfd);
+			if(errno != EBADF) {
+				ExitErrno(200, false);
 			} else {
-				for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
-					printf("Processing %p\n", list);
-					uint8_t buf[1024];
-					size_t  obd = 0;
-					if(FD_ISSET(list->client, &set.read)) {
-						//empty_fd(list->client);
-						obd = read(list->client, buf, sizeof(buf));
-						if(obd == 0){
-
-						}
-						tprintf("Got data from client.");
-					} else if(FD_ISSET(list->server, &set.read)) {
-						empty_fd(list->server);
-						tprintf("Got data from server.");
-					}
-				}
-				tprintf("Should be handling %d sockets...\n", ready);
+				//TODO: Remove bad FD
+				tprintf("Must remove bad FD from socket\n");
 			}
-			//tprintf("Should be handling %d sockets...\n", ready);
+		} else {
+			INCTAB(){
+				if(FD_ISSET(fd_list.listenSocket, &set.read)){
+					tprintf("Accepting... - ");
+					socklen_t        addrlen = 1024;
+					struct sockaddr *addr = malloc(addrlen);
+					int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
+					if(clfd == -1){
+						ExitErrno(27, false);
+					}
+
+					printSockaddr(addrlen, addr);
+					free(addr);
+
+					int svfd = getRemoteConnection(server);
+					AddFdPair(&fd_list, clfd, svfd);
+				} else {
+					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
+						tprintf("Processing %p for read\n", list);
+						INCTAB(){
+							if(FD_ISSET(list->client, &set.read)) {
+								list->clientBuf.length = read(list->client, list->clientBuf.buf, sizeof(list->clientBuf.buf));
+								//TODO: SHIT
+								if(list->clientBuf.length == 0){ //* EOF
+									INCTAB() { RemFdPair(&fd_list, list); }
+								} else if(list->clientBuf.length == -1) { //* ERROR
+									ExitErrno(90, false);
+									list->clientBuf.length = 0;
+								}
+								tprintf("Got data from client. (%d bytes)\n", list->clientBuf.length);
+							}
+							if(FD_ISSET(list->server, &set.read)) {
+								list->serverBuf.length = read(list->server, list->serverBuf.buf, sizeof(list->serverBuf.buf));
+								if(list->serverBuf.length == 0){ //* EOF
+									INCTAB(){ RemFdPair(&fd_list, list); }
+								} else if(list->serverBuf.length == -1) { //* ERROR
+									ExitErrno(91, false);
+									list->serverBuf.length = 0;
+								}
+								tprintf("Got data from server. (%d bytes)\n", list->serverBuf.length);
+							}
+						}
+					}
+					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
+						tprintf("Processing %p for write\n", list);
+						INCTAB(){
+							if(FD_ISSET(list->client, &set.write)) {
+								//list->clientBuf.length = read(list->client, list->clientBuf.buf, sizeof(list->clientBuf.buf));
+								//TODO: SHIT
+								tprintf("Can write to client. (%d bytes waiting)\n", list->serverBuf.length);
+							}
+							if(FD_ISSET(list->server, &set.write)) {
+								tprintf("Can write to server. (%d bytes waiting)\n", list->clientBuf.length);
+							}
+						}
+					}
+					//tprintf("Should be handling %d sockets...\n", ready);
+				}
+			}
 		}
-		set = master_set;
+		set = buildSets(&fd_list);
 	}
 	//TODO: Become a plugin-able netcat/rotate data
 	//TODO: ???
@@ -153,13 +175,6 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	freeaddrinfo(server);
 	freeaddrinfo(listen);
 	return 0;
-}
-
-int empty_fd(int fd){
-	uint8_t buf[1024];
-	int     count = 0;
-	while((count = read(fd, buf, sizeof(buf))) != 0)
-		;
 }
 
 /*

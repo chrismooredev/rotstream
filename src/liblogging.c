@@ -15,7 +15,7 @@ EnumTriple EAI_ERROR_VALUES[] = {
 	MAKE_TRIPLE(EAI_SYSTEM, "System error returned in `errno'."),
 	MAKE_TRIPLE(EAI_OVERFLOW, "Argument buffer overflow."),
 #endif
-#ifdef __USE_GNU
+#ifdef _USE_GNU
 	MAKE_TRIPLE(EAI_NODATA, "No address associated with NAME."),
 	MAKE_TRIPLE(EAI_ADDRFAMILY, "Address family for NAME not supported."),
 	MAKE_TRIPLE(EAI_INPROGRESS, "Processing request in progress."),
@@ -38,7 +38,7 @@ EnumTriple AI_FLAGS_VALUES[] = {
 	MAKE_TRIPLE(AI_ADDRCONFIG, "Use configuration of this host to choose returned address type."),
 	MAKE_TRIPLE(AI_NUMERICSERV, "Don't use name resolution."),
 //#endif
-#ifdef __USE_GNU
+#ifdef _USE_GNU
 	MAKE_TRIPLE(AI_IDN, "IDN encode input (assuming it is encoded in the current locale's character set) before looking it up."),
 	MAKE_TRIPLE(AI_CANONIDN, "Translate canonical name from IDN format."),
 	MAKE_TRIPLE(AI_IDN_ALLOW_UNASSIGNED, "Don't reject unassigned Unicode code points."),

@@ -31,8 +31,6 @@
 
 int tablevel;
 
-
-
 #define MAKE_TUPLE(x) {.value = x, .name = #x}
 #define MAKE_TRIPLE(x, y) {.value = x, .name = #x, .description = y}
 #define ARR_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -75,7 +73,7 @@ typedef struct enumtriple {
 } EnumTriple;
 //#region lol
 //{ // WITH* macros
-#ifdef __USE_GNU
+#ifdef _USE_GNU
 #define WITHGNU(x) x
 #else
 #define WITHGNU(x)

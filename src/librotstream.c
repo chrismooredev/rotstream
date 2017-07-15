@@ -15,7 +15,7 @@ size_t removeIndex(size_t index, size_t len, char** arr){
 		errno = ERANGE;
 		return -1;
 	}
-
+	
 	for(int x = index; x < len-1; x++) //Shift all elements up one
 		arr[x] = arr[x+1];
 
@@ -69,6 +69,11 @@ int getServerSocket(struct addrinfo* server){
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
 		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK, 0);
+		
+		int enable = 1; //https://stackoverflow.com/a/24194999/3439288
+		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+			error("setsockopt(SO_REUSEADDR) failed");
+
 		printf("hai\n");
 		if(sock != -1){
 			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
@@ -136,16 +141,15 @@ int getRemoteConnection(struct addrinfo* server){
 	return sock;
 }
 
-struct fdlist* AddFdPair(struct fdlistHead *head, struct fd_setcollection *fds, int client, int server){
-	struct fdlist* ent = malloc(sizeof(struct fdlist));
+struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server){
+	struct fdlist* ent = calloc(1, sizeof(struct fdlist));
+
+	tprintf("Adding pair: Client=%d and Server=%d\n", client, server);
 
 	ent->client = client;
 	ent->server = server;
-	ent->next       = NULL;
-
-	//TODO: Enable FDs for write-checking
-	FD_SET(client, &(fds->read));
-	FD_SET(server, &(fds->read));
+	//ent->next = NULL; //Handled by calloc
+	//ent->(clientBuf|serverBuf) = {0}; //handled by calloc
 
 	if(head->next == NULL)
 		head->next      = ent;
@@ -158,8 +162,23 @@ struct fdlist* AddFdPair(struct fdlistHead *head, struct fd_setcollection *fds, 
 
 	return ent;
 }
-void RemFdPair(struct fdlistHead* list, struct fd_setcollection* fds, struct fdlist *element){
-	
+void RemFdPair(struct fdlistHead* list, struct fdlist *element){
+	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client, element->server, element);
+
+	close(element->client);
+	close(element->server);
+
+	if(list->next == element){
+		list->next = element->next;
+		free(element);
+	} else {
+		for(struct fdlist *elem = list->next, *last = elem; elem != NULL; last = elem, elem = elem->next){
+			if(elem == element){
+				last->next = element->next; //Works if element->next is NULL or not
+				free(element);
+			}
+		}
+	}
 }
 int calcNfds(struct fdlistHead *list){
 	struct fdlist* ls = list->next;
@@ -167,4 +186,39 @@ int calcNfds(struct fdlistHead *list){
 	for(max = list->listenSocket; ls != NULL; ls = ls->next)
 		max = MAX(max, MAX(ls->client, ls->server));
 	return max+1;
+}
+struct fd_setcollection buildSets(struct fdlistHead* list) {
+	struct fd_setcollection sets;
+	FD_ZERO(&sets.read);
+	FD_ZERO(&sets.write);
+	FD_ZERO(&sets.except);
+
+	//* FD_SET(fd, set) FD_ISSET(fd, set) FD_ZERO(set) FD_CLR(fd, set)
+	FD_SET(list->listenSocket, &sets.read);
+	//* Cycle through, if buffer has no data, add to sets.read
+	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
+		if(elem->clientBuf.length == 0){
+			FD_SET(elem->client, &sets.read);
+		}
+		if(elem->serverBuf.length == 0){
+			FD_SET(elem->server, &sets.read);
+		}
+	}
+	//* Cycle through, if buffer has data, add to sets.write
+	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
+		normalizeBuf(&(elem->clientBuf));
+		normalizeBuf(&(elem->serverBuf));
+
+		//* The sockets are waiting for data on the other stream, so check the other one
+
+		if(elem->serverBuf.length != 0){
+			FD_SET(elem->client, &sets.write);
+			//printf("%s", &(elem->clientBuf));
+		}
+		if(elem->clientBuf.length != 0){
+			FD_SET(elem->server, &sets.write);
+		}
+	}
+
+	return sets;
 }
