@@ -61,3 +61,28 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 	else
 		hints->ai_family = AF_UNSPEC;
 }
+
+int getServerSocket(struct addrinfo* server){
+	int sock = -1;
+	int bindres = -1;
+	while(server != NULL){
+		//int socket(int domain, int type, int protocol);
+		sock = socket(server->ai_family, server->ai_socktype, SOCK_NONBLOCK);
+		printf("hai\n");
+		if(sock == -1){
+			server = server->ai_next;
+			continue;
+		}
+		bindres = bind(sock, server->ai_addr, server->ai_addrlen);
+		if(sock == 0 && bindres == 0)
+			break;
+		server = server->ai_next;
+	}
+	if(sock == -1){
+		ExitErrno(7, sock);
+	} else if(bindres == -1){
+		ExitErrno(8, bindres);
+	}
+
+	return sock;
+}
