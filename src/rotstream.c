@@ -1,15 +1,17 @@
+#define _GNU_SOURCE //Thanks https://github.com/lpeterse/haskell-socket/issues/24
+
 #include "headers/liblogging.h"
 #include "headers/librotstream.h"
 
 int8_t  rotateAmount;
-
-
 
 int main(int argc, char* argv[]) {
 	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
 		printf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
 		Exit(1, true);
 	}
+
+	setbuf(stdout, NULL);
 
 	size_t arg_num = 1;
 	struct addrinfo addrinfo_hints = {0};
@@ -108,12 +110,12 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 			}
 		} else {
 			INCTAB(){
-				if(FD_ISSET(fd_list.listenSocket, &set.read)){
+				if(FD_ISSET(fd_list.listenSocket, &set.read)) {
 					tprintf("Accepting... - ");
 					socklen_t        addrlen = 1024;
 					struct sockaddr *addr = malloc(addrlen);
 					int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
-					if(clfd == -1){
+					if(clfd == -1) {
 						ExitErrno(27, false);
 					}
 
@@ -134,6 +136,8 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 								} else if(list->clientBuf.length == -1) { //* ERROR
 									ExitErrno(90, false);
 									list->clientBuf.length = 0;
+								} else {
+									//TODO: Rotate data
 								}
 								tprintf("Got data from client. (%d bytes)\n", list->clientBuf.length);
 							}
@@ -144,6 +148,8 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 								} else if(list->serverBuf.length == -1) { //* ERROR
 									ExitErrno(91, false);
 									list->serverBuf.length = 0;
+								} else {
+									//TODO: Rotate data
 								}
 								tprintf("Got data from server. (%d bytes)\n", list->serverBuf.length);
 							}
@@ -153,12 +159,24 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 						tprintf("Processing %p for write\n", list);
 						INCTAB(){
 							if(FD_ISSET(list->client, &set.write)) {
-								//list->clientBuf.length = read(list->client, list->clientBuf.buf, sizeof(list->clientBuf.buf));
-								//TODO: SHIT
-								tprintf("Can write to client. (%d bytes waiting)\n", list->serverBuf.length);
+								//ssize_t write(int fd, const void *buf, size_t count);
+								ssize_t written = write(list->client, list->serverBuf.buf, list->serverBuf.length) - 1;
+								if(written == -1) {
+									ExitErrno(101, false);
+								} else {
+									readfromBuf(&list->serverBuf, written);
+								}
+								tprintf("Written to client. (%d bytes waited)\n", list->serverBuf.length);
 							}
 							if(FD_ISSET(list->server, &set.write)) {
-								tprintf("Can write to server. (%d bytes waiting)\n", list->clientBuf.length);
+								//list->clientBuf.startIndex
+								ssize_t written = write(list->server, list->clientBuf.buf, list->clientBuf.length) - 1;
+								if(written == -1) {
+									ExitErrno(102, false);
+								} else {
+									readfromBuf(&list->clientBuf, written);
+								}
+								tprintf("Written to server. (%d bytes waited)\n", list->clientBuf.length);
 							}
 						}
 					}

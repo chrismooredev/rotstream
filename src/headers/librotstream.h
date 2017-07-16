@@ -1,10 +1,10 @@
 #ifndef _INCL_LIBROT
 #define _INCL_LIBROT
 
-#define _GNU_SOURCE //Thanks https://github.com/lpeterse/haskell-socket/issues/24
-
+#include <assert.h>
 #include <limits.h>
 #include <errno.h>
+#include <error.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -48,10 +48,10 @@
 #define Exit(n, usererror)                                                                                      \
 	{ fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
 	exit(n); }
-#define ExitErrno(n, usererror) \
-	{ fprintf(stderr, "Errno: %d (%s)\n\t", errno, strerror(errno));    \
-	Exit(n, usererror); }
-	//err(n, NULL);               \
+#define ExitErrno(n, usererror) {                                  \
+	fprintf(stderr, "Errno: %d (%s)\n\t", errno, strerror(errno)); \
+	Exit(n, usererror);                                            \
+}
 
 #define CheckAndLogError(NAME, CHECKVAL)                         \
 	if(CHECKVAL == -1 || CHECKVAL < 0) {                         \
@@ -66,17 +66,10 @@
 #undef max
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
-#define normalizeBuf(buffer)                                                                       \
-	if((buffer)->startIndex != 0) {                                                                \
-		memmove((buffer)->buf, (buffer)->buf + (buffer)->startIndex, (buffer)->length - (buffer)->startIndex); \
-		(buffer)->length     = (buffer)->length - (buffer)->startIndex;                                  \
-		(buffer)->startIndex = 0;                                                                  \
-	}
-
-    struct buffer1k {
-	    ssize_t  length;
-	    size_t  startIndex;
-	    uint8_t buf[1024];
+struct buffer1k {
+	ssize_t length;
+	size_t  startIndex;
+	uint8_t buf[1024];
 };
 struct fd_setcollection {
 	fd_set read;
@@ -110,4 +103,7 @@ struct fd_setcollection buildSets(struct fdlistHead* list);
 
 struct fdlist* AddFdPair(struct fdlistHead* list, int client, int server);
 void RemFdPair(struct fdlistHead* list, struct fdlist *element);
+
+void normalizeBuf(struct buffer1k* buffer);
+void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 #endif

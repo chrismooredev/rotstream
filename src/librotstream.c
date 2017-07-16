@@ -72,7 +72,7 @@ int getServerSocket(struct addrinfo* server){
 		
 		int enable = 1; //https://stackoverflow.com/a/24194999/3439288
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-			error("setsockopt(SO_REUSEADDR) failed");
+			perror("setsockopt(SO_REUSEADDR) failed");
 
 		printf("hai\n");
 		if(sock != -1){
@@ -221,4 +221,32 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 	}
 
 	return sets;
+}
+void normalizeBuf(struct buffer1k *buffer){
+	size_t len = buffer->length - buffer->startIndex;
+	//tprintf("Buf %p, Src %p, totalLen %d (Len %d, Ind %d)\n", buffer->buf, buffer->buf + buffer->startIndex, len, buffer->length, buffer->startIndex);
+	if(buffer->length == 0) {
+		buffer->startIndex = 0;
+	} else if(buffer->startIndex != 0) {
+		memmove(buffer->buf, buffer->buf + buffer->startIndex, len);
+		buffer->length     = buffer->length - buffer->startIndex;
+		buffer->startIndex = 0;
+	}
+}
+void readfromBuf(struct buffer1k *buffer, ssize_t amount){
+	assert((amount >= 0));
+	assert((buffer->startIndex + amount <= buffer->length));
+
+	if(amount == buffer->length){
+		buffer->length = 0;
+		buffer->startIndex = 0;
+	} else {
+		buffer->startIndex += amount;
+
+		if(buffer->startIndex == buffer->length - 1){
+			buffer->length = 0;
+			buffer->startIndex = 0;
+		}
+		normalizeBuf(buffer);
+	}
 }
