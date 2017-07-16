@@ -46,18 +46,19 @@
 #endif
 
 #define Exit(n, usererror)                                                                                      \
-	{ fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
-	exit(n); }
-#define ExitErrno(n, usererror) {                                  \
+	do { fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
+	exit(n); } while(false)
+#define ExitErrno(n, usererror) do {                                  \
 	fprintf(stderr, "Errno: %d (%s)\n\t", errno, strerror(errno)); \
 	Exit(n, usererror);                                            \
-}
+} while(false)
 
 #define CheckAndLogError(NAME, CHECKVAL)                         \
+do { \
 	if(CHECKVAL == -1 || CHECKVAL < 0) {                         \
 		printf(#NAME " Error %d: %s\n", errno, strerror(errno)); \
 		return errno;                                            \
-	}
+	} while(false)
 
 #define bool2str(x) ((x) ? "true" : "false")
 #define asStr(token) #token
@@ -65,6 +66,12 @@
 
 #undef max
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define addToSetIf(cond, fd, set) \
+	do {                          \
+		if((cond))                \
+			FD_SET((fd), (set));  \
+	} while(0)
 
 struct buffer1k {
 	ssize_t length;
@@ -76,12 +83,35 @@ struct fd_setcollection {
 	fd_set write;
 	fd_set except;
 };
+struct fdelem {
+	int fd;
+	char*            descriptString;
+	struct buffer1k  buf;
+	struct sockaddr* sockaddr;
+	int              sockaddrlen;
+};
+/*
+union fdlist_u {
+	struct fdlist list;
+	struct {
+		struct fdelem elems[2];
+		struct fdlist* next;
+	};
+}; */
 struct fdlist {
+	/*
 	int				client;
 	int				server;
 	struct buffer1k clientBuf;
 	struct buffer1k serverBuf;
-	struct fdlist*  next;
+	struct sockaddr* clientSockaddr;
+	int              clientSockaddrLen;
+	struct sockaddr* serverSockaddr;
+	int              serverSockaddrLen;
+	*/
+	struct fdelem  client;
+	struct fdelem  server;
+	struct fdlist* next;
 };
 struct fdlistHead {
 	int listenSocket;
@@ -98,12 +128,14 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]);
 int getServerSocket(struct addrinfo* server);
 int getRemoteConnection(struct addrinfo* server);
 
-int calcNfds(struct fdlistHead* list);
+int calcNfds(struct fdlistHead* list, struct fd_setcollection col);
 struct fd_setcollection buildSets(struct fdlistHead* list);
 
-struct fdlist* AddFdPair(struct fdlistHead* list, int client, int server);
+struct fdlist* AddFdPair(struct fdlistHead* list, int client, int server, struct sockaddr *addr, socklen_t addrlen);
 void RemFdPair(struct fdlistHead* list, struct fdlist *element);
 
 void normalizeBuf(struct buffer1k* buffer);
 void readfromBuf(struct buffer1k* buffer, ssize_t amount);
+
+void processWrite(struct fdlist* list, fd_set* write);
 #endif

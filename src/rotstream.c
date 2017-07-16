@@ -98,7 +98,7 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	*/
 	struct fd_setcollection set = buildSets(&fd_list);
 
-	for(int ready = 0;;ready = pselect(calcNfds(&fd_list), &set.read, &set.write, &set.except, &timeout, NULL)) {
+	for(int ready = 0;;ready = pselect(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout, NULL)) {
 		if(ready == 0){
 			tprintf("Waiting for connection...\n");
 		} else if(ready == -1) {
@@ -110,77 +110,55 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 			}
 		} else {
 			INCTAB(){
+				//TODO: bool accepted = acceptConnection(struct fdlistHead * list, fd_list read);
 				if(FD_ISSET(fd_list.listenSocket, &set.read)) {
 					tprintf("Accepting... - ");
 					socklen_t        addrlen = 1024;
-					struct sockaddr *addr = malloc(addrlen);
+					struct sockaddr *addr = malloc(addrlen); //* free(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
 					int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
 					if(clfd == -1) {
 						ExitErrno(27, false);
 					}
 
 					printSockaddr(addrlen, addr);
-					free(addr);
 
 					int svfd = getRemoteConnection(server);
-					AddFdPair(&fd_list, clfd, svfd);
+					AddFdPair(&fd_list, clfd, svfd, addr, addrlen);
 				} else {
 					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
 						tprintf("Processing %p for read\n", list);
 						INCTAB(){
-							if(FD_ISSET(list->client, &set.read)) {
-								list->clientBuf.length = read(list->client, list->clientBuf.buf, sizeof(list->clientBuf.buf));
-								//TODO: SHIT
-								if(list->clientBuf.length == 0){ //* EOF
-									INCTAB() { RemFdPair(&fd_list, list); }
-								} else if(list->clientBuf.length == -1) { //* ERROR
-									ExitErrno(90, false);
-									list->clientBuf.length = 0;
-								} else {
-									//TODO: Rotate data
+							struct fdelem *connection = &list->client;
+							while(connection != NULL){
+								if(FD_ISSET(connection->fd, &set.read)) {
+									assert(connection->buf.length == 0);
+									connection->buf.length = read(connection->fd, connection->buf.buf, sizeof(connection->buf.buf));
+									//TODO: SHIT
+									if(connection->buf.length == 0){ //* EOF
+										INCTAB() {
+											RemFdPair(&fd_list, list);
+											connection = NULL; //End loop
+											continue;
+										}
+									} else if(connection->buf.length == -1) { //* ERROR
+										ExitErrno(90, false);
+										connection->buf.length = 0;
+									} else {
+										tprintf("Got data from %s. (%d bytes)\n", connection->descriptString, connection->buf.length);
+										// TODO: Rotate data
+									}
 								}
-								tprintf("Got data from client. (%d bytes)\n", list->clientBuf.length);
-							}
-							if(FD_ISSET(list->server, &set.read)) {
-								list->serverBuf.length = read(list->server, list->serverBuf.buf, sizeof(list->serverBuf.buf));
-								if(list->serverBuf.length == 0){ //* EOF
-									INCTAB(){ RemFdPair(&fd_list, list); }
-								} else if(list->serverBuf.length == -1) { //* ERROR
-									ExitErrno(91, false);
-									list->serverBuf.length = 0;
-								} else {
-									//TODO: Rotate data
-								}
-								tprintf("Got data from server. (%d bytes)\n", list->serverBuf.length);
+
+								connection = connection == &list->client ? &list->server : NULL;
 							}
 						}
 					}
 					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
 						tprintf("Processing %p for write\n", list);
-						INCTAB(){
-							if(FD_ISSET(list->client, &set.write)) {
-								//ssize_t write(int fd, const void *buf, size_t count);
-								ssize_t written = write(list->client, list->serverBuf.buf, list->serverBuf.length) - 1;
-								if(written == -1) {
-									ExitErrno(101, false);
-								} else {
-									readfromBuf(&list->serverBuf, written);
-								}
-								tprintf("Written to client. (%d bytes waited)\n", list->serverBuf.length);
-							}
-							if(FD_ISSET(list->server, &set.write)) {
-								//list->clientBuf.startIndex
-								ssize_t written = write(list->server, list->clientBuf.buf, list->clientBuf.length) - 1;
-								if(written == -1) {
-									ExitErrno(102, false);
-								} else {
-									readfromBuf(&list->clientBuf, written);
-								}
-								tprintf("Written to server. (%d bytes waited)\n", list->clientBuf.length);
-							}
-						}
+						INCTAB(){ processWrite(list, &set.write); }
 					}
 					//tprintf("Should be handling %d sockets...\n", ready);
+					tprintf("Handled %d/%d sockets.\n", calcHandled(), ready);
 				}
 			}
 		}

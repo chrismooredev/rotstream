@@ -141,15 +141,21 @@ int getRemoteConnection(struct addrinfo* server){
 	return sock;
 }
 
-struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server){
+struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server, struct sockaddr *addr, socklen_t addrlen){
 	struct fdlist* ent = calloc(1, sizeof(struct fdlist));
 
 	tprintf("Adding pair: Client=%d and Server=%d\n", client, server);
 
-	ent->client = client;
-	ent->server = server;
-	//ent->next = NULL; //Handled by calloc
-	//ent->(clientBuf|serverBuf) = {0}; //handled by calloc
+	ent->client.fd = client;
+	ent->server.fd = server;
+
+	ent->client.descriptString = "client";
+	ent->server.descriptString = "server";
+
+	ent->client.sockaddr = addr;
+	ent->client.sockaddrlen = addrlen;
+
+	ent->next = NULL;
 
 	if(head->next == NULL)
 		head->next      = ent;
@@ -163,28 +169,32 @@ struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server){
 	return ent;
 }
 void RemFdPair(struct fdlistHead* list, struct fdlist *element){
-	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client, element->server, element);
+	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client.fd, element->server.fd, element);
 
-	close(element->client);
-	close(element->server);
+	close(element->client.fd);
+	close(element->server.fd);
+	free(element->client.sockaddr); //* malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
+	//free(element->server.sockaddr); //Closed when freeaddrinfo is called
 
-	if(list->next == element){
+	if(list->next == element) {
 		list->next = element->next;
-		free(element);
 	} else {
 		for(struct fdlist *elem = list->next, *last = elem; elem != NULL; last = elem, elem = elem->next){
 			if(elem == element){
 				last->next = element->next; //Works if element->next is NULL or not
-				free(element);
 			}
 		}
 	}
+	free(element);
 }
-int calcNfds(struct fdlistHead *list){
+int calcNfds(struct fdlistHead *list, struct fd_setcollection col) {
 	struct fdlist* ls = list->next;
 	int            max;
-	for(max = list->listenSocket; ls != NULL; ls = ls->next)
-		max = MAX(max, MAX(ls->client, ls->server));
+	for(max = list->listenSocket; ls != NULL; ls = ls->next){
+		bool cl = FD_ISSET(ls->client.fd, &col.read) || FD_ISSET(ls->client.fd, &col.write);
+		bool sv = FD_ISSET(ls->server.fd, &col.read) || FD_ISSET(ls->server.fd, &col.write);;
+		max = MAX(max, MAX(cl ? ls->client.fd : 0, sv ? ls->server.fd : 0));
+	}
 	return max+1;
 }
 struct fd_setcollection buildSets(struct fdlistHead* list) {
@@ -194,29 +204,44 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 	FD_ZERO(&sets.except);
 
 	//* FD_SET(fd, set) FD_ISSET(fd, set) FD_ZERO(set) FD_CLR(fd, set)
+	//* Add main socket to listen for new connections
 	FD_SET(list->listenSocket, &sets.read);
+
 	//* Cycle through, if buffer has no data, add to sets.read
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
-		if(elem->clientBuf.length == 0){
-			FD_SET(elem->client, &sets.read);
-		}
-		if(elem->serverBuf.length == 0){
-			FD_SET(elem->server, &sets.read);
-		}
+		addToSetIf(elem->client.buf.length == 0, elem->client.fd, &sets.read);
+		addToSetIf(elem->server.buf.length == 0, elem->server.fd, &sets.read);
 	}
+
 	//* Cycle through, if buffer has data, add to sets.write
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
-		normalizeBuf(&(elem->clientBuf));
-		normalizeBuf(&(elem->serverBuf));
+		normalizeBuf(&(elem->client.buf));
+		normalizeBuf(&(elem->server.buf));
+
+		socklen_t intsize    = sizeof(int);
+		int client_err = 0;
+		int server_err = 0;
+		int client_res = getsockopt(elem->client.fd, SOL_SOCKET, SO_ERROR, &client_err, &intsize);
+		int       client_errno = errno;
+		int       server_res = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, &server_err, &intsize);
+		int       server_errno = errno;
 
 		//* The sockets are waiting for data on the other stream, so check the other one
+		addToSetIf(elem->server.buf.length != 0, elem->client.fd, &sets.write);
+		addToSetIf(elem->client.buf.length != 0, elem->server.fd, &sets.write);
 
-		if(elem->serverBuf.length != 0){
-			FD_SET(elem->client, &sets.write);
-			//printf("%s", &(elem->clientBuf));
+		if(client_res == -1 || server_res == -1){
+			tprintf("Client_res: %s, Server_res: %s\n", strerror(client_errno), strerror(server_errno));
 		}
-		if(elem->clientBuf.length != 0){
-			FD_SET(elem->server, &sets.write);
+
+		if(FD_ISSET(elem->client.fd, &sets.write)){
+			if(client_err != 0){
+				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->client.fd, client_err, strerror(client_err));
+			}
+		}		if(FD_ISSET(elem->server.fd, &sets.write)){
+			if(server_err != 0){
+				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->server.fd, server_err, strerror(server_err));
+			}
 		}
 	}
 
@@ -248,5 +273,29 @@ void readfromBuf(struct buffer1k *buffer, ssize_t amount){
 			buffer->startIndex = 0;
 		}
 		normalizeBuf(buffer);
+	}
+}
+void processWrite(struct fdlist* list, fd_set* writeset){
+	//int fd = list->client;
+	struct fdelem *conn = &list->client;
+	#define getOpposite(list, elem) (&list->client == elem ? &list->server : &list->client)
+
+	while(conn != NULL) {
+		struct fdelem *opp = getOpposite(list, conn);
+		if(FD_ISSET(opp->fd, writeset)) {
+			//ssize_t write(int fd, const void *buf, size_t count);
+			printf("Write to %d (%s) (Opp buffer contains Len:%zd Ind:%zu)\n", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
+			ssize_t written = write(opp->fd, conn->buf.buf + conn->buf.startIndex, conn->buf.length - conn->buf.startIndex) - 1;
+			if(written == -1 && errno == EINPROGRESS) {
+				printf("Had an error that no-one cares about.");
+			} else if(written == -1) {
+				ExitErrno(101, false);
+			} else {
+				tprintf("Written to %s: %d bytes\n", opp->descriptString, written);
+				readfromBuf(&conn->buf, written);
+			}
+			FD_CLR(opp->fd, writeset);
+		}
+		conn = conn == &list->client ? &list->server : NULL;
 	}
 }
