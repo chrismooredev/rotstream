@@ -51,6 +51,8 @@ int main(int argc, char* argv[]) {
 
 	arg_num++;
 
+	printf("sizeof(struct fdlistHead) = %lu, sizeof(struct fdlist) = %lu, sizeof(struct fdelem) = %lu\n", sizeof(struct fdlistHead), sizeof(struct fdlist), sizeof(struct fdelem));
+
 /*
 struct sockaddr_in {
 	short	sin_family;
@@ -80,7 +82,7 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	//TODO: Start listening shit
 	//* Setup `select()` data
 	struct timespec   timeout = {.tv_sec = 10, .tv_nsec = 0};
-	struct fdlistHead fd_list = {.listenSocket = listenSocket, .next = NULL};
+	struct fdlistHead fd_list = {.fd = listenSocket, .next = NULL};
 
 	//! FD_SET(int fd, fd_set *set);
 	//! FD_CLR(int fd, fd_set *set);
@@ -97,8 +99,8 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 		const sigset_t *sigmask);
 	*/
 	struct fd_setcollection set = buildSets(&fd_list);
-
-	for(int ready = 0;;ready = pselect(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout, NULL)) {
+	struct fd_setcollection for_calc;
+	for(int ready = 0;;set = buildSets(&fd_list), ready = pselect(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout, NULL)) {
 		if(ready == 0){
 			tprintf("Waiting for connection...\n");
 		} else if(ready == -1) {
@@ -109,13 +111,15 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 				tprintf("Must remove bad FD from socket\n");
 			}
 		} else {
-			INCTAB(){
+			tprintf("Handling %d connection%s...\n", ready, ready != 1 ? "s" : "");
+			INCTAB() {
+				for_calc = set;
 				//TODO: bool accepted = acceptConnection(struct fdlistHead * list, fd_list read);
-				if(FD_ISSET(fd_list.listenSocket, &set.read)) {
+				if(FD_ISSET(fd_list.fd, &set.read)) {
 					tprintf("Accepting... - ");
 					socklen_t        addrlen = 1024;
 					struct sockaddr *addr = malloc(addrlen); //* free(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
-					int clfd = accept4(fd_list.listenSocket, addr, &addrlen, SOCK_NONBLOCK);
+					int clfd = accept4(fd_list.fd, addr, &addrlen, SOCK_NONBLOCK);
 					if(clfd == -1) {
 						ExitErrno(27, false);
 					}
@@ -124,10 +128,11 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 
 					int svfd = getRemoteConnection(server);
 					AddFdPair(&fd_list, clfd, svfd, addr, addrlen);
+					FD_CLR(fd_list.fd, &set.read);
 				} else {
-					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
+					for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
 						tprintf("Processing %p for read\n", list);
-						INCTAB(){
+						//INCTAB(){
 							struct fdelem *connection = &list->client;
 							while(connection != NULL){
 								if(FD_ISSET(connection->fd, &set.read)) {
@@ -136,33 +141,35 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 									//TODO: SHIT
 									if(connection->buf.length == 0){ //* EOF
 										INCTAB() {
-											RemFdPair(&fd_list, list);
-											connection = NULL; //End loop
-											continue;
+										    FD_CLR(connection->fd, &set.read);
+										    list = RemFdPair(&fd_list, list);
+										    //connection = NULL; //End loop
 										}
-									} else if(connection->buf.length == -1) { //* ERROR
+									    //tablevel--;
+									    break;
+								    } else if(connection->buf.length == -1) { //* ERROR
 										ExitErrno(90, false);
 										connection->buf.length = 0;
 									} else {
 										tprintf("Got data from %s. (%d bytes)\n", connection->descriptString, connection->buf.length);
 										// TODO: Rotate data
-									}
-								}
+									    rotate(rotateAmount, connection->buf.buf, connection->buf.length);
+								    }
+							    }
 
 								connection = connection == &list->client ? &list->server : NULL;
 							}
-						}
+						//}
 					}
 					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
 						tprintf("Processing %p for write\n", list);
 						INCTAB(){ processWrite(list, &set.write); }
 					}
-					//tprintf("Should be handling %d sockets...\n", ready);
-					tprintf("Handled %d/%d sockets.\n", calcHandled(), ready);
 				}
+				tprintf("Handled %d/%d sockets.\n", calcHandled(&fd_list, set, for_calc), ready);
 			}
 		}
-		set = buildSets(&fd_list);
+		//set = buildSets(&fd_list);
 	}
 	//TODO: Become a plugin-able netcat/rotate data
 	//TODO: ???

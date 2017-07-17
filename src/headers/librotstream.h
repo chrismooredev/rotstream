@@ -99,27 +99,16 @@ union fdlist_u {
 	};
 }; */
 struct fdlist {
-	/*
-	int				client;
-	int				server;
-	struct buffer1k clientBuf;
-	struct buffer1k serverBuf;
-	struct sockaddr* clientSockaddr;
-	int              clientSockaddrLen;
-	struct sockaddr* serverSockaddr;
-	int              serverSockaddrLen;
-	*/
 	struct fdelem  client;
 	struct fdelem  server;
 	struct fdlist* next;
 };
 struct fdlistHead {
-	int listenSocket;
+	int fd;
 	struct fdlist* next;
 };
 
-void
-rotate(int8_t rotateBy, uint8_t* buf, size_t length);
+void rotate(int8_t rotateBy, uint8_t* buf, size_t length);
 struct in_addr ConvertIPv4(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
 size_t removeIndex(size_t index, size_t len, char** arr);
 void printListHeader(char* header, size_t len, char** list);
@@ -132,10 +121,11 @@ int calcNfds(struct fdlistHead* list, struct fd_setcollection col);
 struct fd_setcollection buildSets(struct fdlistHead* list);
 
 struct fdlist* AddFdPair(struct fdlistHead* list, int client, int server, struct sockaddr *addr, socklen_t addrlen);
-void RemFdPair(struct fdlistHead* list, struct fdlist *element);
+struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element);
 
 void normalizeBuf(struct buffer1k* buffer);
 void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 
 void processWrite(struct fdlist* list, fd_set* write);
+int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect);
 #endif

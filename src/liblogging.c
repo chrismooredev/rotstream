@@ -166,6 +166,8 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 void tprintf(const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
+	assert(tablevel >= 0);
+	assert(fmt != NULL);
 	char* hi = malloc(strlen(fmt) + 1 + tablevel); //Create buffer big enough for string, null, and tabs
 	strcpy(hi+tablevel, fmt); //copy over fmt string after where the tabs go, including \0
 	memset(hi, '\t', tablevel); //set tab character preceding it
