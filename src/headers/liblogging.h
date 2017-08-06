@@ -58,8 +58,8 @@ struct addrinfo {
 		if((CHECK_EXPR)) {                                                  \
 			tprintf("");                                                    \
 			if(PRNT_NUM)                                                    \
-				printf("%d - ", ENUM_VALS[i].value);                        \
-			printf("%s\n",ENUM_VALS[i].name); \
+				_printf("%d - ", ENUM_VALS[i].value);                        \
+			_printf("%s\n",ENUM_VALS[i].name); \
 		}                                                                   \
 	}
 
@@ -100,8 +100,15 @@ EnumTuple AF_ENUM_VALUES[9 WITHLIN(+35) WITHWIN(+25)];
 EnumTuple SOCK_ENUM_VALUES[5 WITHLIN(+2)];
 EnumTuple PROTO_ENUM_VALUES[22 WITHLIN(+4)];
 
-// Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
-void tprintf(const char* fmt, ...);
+void tvfprintf(FILE *stream, const char *fmt, va_list args); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+void tfprintf(FILE *stream, const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+void tprintf(const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+//Use what is functionally equilavent to printf without triggering compiler warnings.
+#define _printf(format, ...) fprintf(stdout, format, ##__VA_ARGS__)
+
+int printf(const char *format, ...) __attribute_deprecated__;
+
+
 // Get the first value in the enum list, where `value` is equal to EnumValue
 #define getEnumValue(value, enumValues) _getEnumValue(value, ARR_SIZE(enumValues), enumValues)
 const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]);

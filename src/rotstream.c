@@ -7,7 +7,7 @@ int8_t  rotateAmount;
 
 int main(int argc, char* argv[]) {
 	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
-		printf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
+		tprintf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
 		Exit(1, true);
 	}
 
@@ -25,14 +25,14 @@ int main(int argc, char* argv[]) {
 	rotateAmount = strtol(argv[arg_num++], NULL, 10); //Convert cipher amount as string to long
 	int rotErrno = errno;
 
-	printf("Rotate Amount   : %d\n", rotateAmount);
+	tprintf("Rotate Amount   : %d\n", rotateAmount);
 	if(rotErrno == ERANGE || !(-254 <= rotateAmount && rotateAmount <= 254)) {
-		printf("The RotateAmount is out of range! Try putting it between -254 and 254.\n");
+		tprintf("The RotateAmount is out of range! Try putting it between -254 and 254.\n");
 		Exit(2, true);
 	}
 	rotateAmount = rotateAmount % 255; // Normalize the cipher, Negatives are preserved
 
-	printf("Rotate Amount(n): %d\n", rotateAmount);
+	tprintf("Rotate Amount(n): %d\n", rotateAmount);
 
 	struct addrinfo *server;
 	struct addrinfo *listen;
@@ -43,15 +43,15 @@ int main(int argc, char* argv[]) {
 	int result2 = getaddrinfo(arg_num+1 <= argc ? argv[arg_num+1] : NULL, argv[arg_num], &addrinfo_hints, &listen);
 
 	if(result != 0){
-		printf("Result != 0\n");
+		tprintf("Result != 0\n");
 	}
 	if(result2 != 0){
-		printf("Result != 0\n");
+		tprintf("Result2 != 0\n");
 	}
 
 	arg_num++;
 
-	printf("sizeof(struct fdlistHead) = %lu, sizeof(struct fdlist) = %lu, sizeof(struct fdelem) = %lu\n", sizeof(struct fdlistHead), sizeof(struct fdlist), sizeof(struct fdelem));
+	tprintf("sizeof(struct fdlistHead) = %lu, sizeof(struct fdlist) = %lu, sizeof(struct fdelem) = %lu\n", sizeof(struct fdlistHead), sizeof(struct fdlist), sizeof(struct fdelem));
 
 /*
 struct sockaddr_in {

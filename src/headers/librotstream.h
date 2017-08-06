@@ -57,7 +57,7 @@
 #define CheckAndLogError(NAME, CHECKVAL)                         \
 do { \
 	if(CHECKVAL == -1 || CHECKVAL < 0) {                         \
-		printf(#NAME " Error %d: %s\n", errno, strerror(errno)); \
+		fprintf(stderr, #NAME " Error %d: %s\n", errno, strerror(errno)); \
 		return errno;                                            \
 	} while(false)
 

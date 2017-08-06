@@ -23,11 +23,10 @@ size_t removeIndex(size_t index, size_t len, char** arr){
 	return len-1; //Return the new size
 }
 void printListHeader(char* header, size_t len, char** list){
-	printf("%s: (%lu)\n", header, len);
-	for(int i = 0; i < len; i++){
-		printf("\t%d", i);
-		printf(" (%p)", *list+i);
-		printf("\t%s\n", list[i]);
+	tprintf("%s: (%lu)\n", header, len);
+	INCTAB() for(int i = 0; i < len; i++){
+		tprintf("%d (%p)", i, *list+i);
+		tprintf("%s\n", list[i]);
 	}
 }
 
@@ -47,7 +46,7 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 	}
 
 	if(foundFour && foundSix){
-		printf("Arguments '-4' and '-6' cannot be used simultaneously.");
+		tprintf("Arguments '-4' and '-6' cannot be used simultaneously.");
 		Exit(5, true);
 	}
 
@@ -74,13 +73,13 @@ int getServerSocket(struct addrinfo* server){
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
 			perror("setsockopt(SO_REUSEADDR) failed");
 
-		printf("hai\n");
+		tprintf("Socket: Bound\n");
 		if(sock != -1){
 			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
-			printf("chai\n");
+			tprintf("Socket: Bound\n");
 			if(bindres != -1) {
 				lisres = listen(sock, 10);
-				printf("tea\n");
+				tprintf("Socket: Listened\n");
 				if(sock != -1 && bindres == 0 && lisres == 0)
 					break;
 			}
@@ -96,7 +95,7 @@ int getServerSocket(struct addrinfo* server){
 		lisres  = -1;
 		server  = server->ai_next;
 	}
-	printf("Sock: %d, Bind: %d, Listen: %d\n", sock, bindres, lisres);
+	tprintf("Sock: %d, Bind: %d, Listen: %d\n", sock, bindres, lisres);
 	if(sock == -1) {
 		ExitErrno(7, "socket(2)");
 	} else if(bindres == -1) {
@@ -110,28 +109,26 @@ int getServerSocket(struct addrinfo* server){
 int getRemoteConnection(struct addrinfo* server){
 	int sock    = -1;
 	int conres = -1;
-	int temperrno;
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
 		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK , 0);
 		//fcntl(sock, F_SETFL, O_NONBLOCK);
-		printf("Created Socket. Creating Connection...\n");
-		if(sock != -1 || sock == -1){
-			errno = EOK;
+		tprintf("Created Socket. Creating Connection...\n");
+		if(sock != -1){
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
-			printf("Checking result of connect()...\n");
+			tprintf("Checking result of connect()...\n");
 			if(sock != -1 && (conres == 0 || errno == EINPROGRESS))
 				break;
 		}
 		if(sock == -1) {
-			int errno_cache = errno;
+			tprintf("Socket creation failed. Closing it.");
 			close(sock);
 		}
 		sock   = -1;
 		conres = -1;
 		server  = server->ai_next;
 	}
-	printf("Sock: %d, Connect: %d\n", sock, conres);
+	tprintf("Sock: %d, Connect: %d\n", sock, conres);
 	if(sock == -1) {
 		ExitErrno(67, "socket(2)");
 	} else if(conres == -1 && errno != EINPROGRESS) {
@@ -216,11 +213,11 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 	#define isValidFd(fd) (fcntl(fd, F_GETFD) != -1 || errno != EBADF)
 	#define skipLogPair(el) do { \
 		if(!isValidFd(el->client.fd)){ \
-			printf("Client FD %d from element %p is not valid!\n", el->client.fd, el); \
+			tprintf("Client FD %d from element %p is not valid!\n", el->client.fd, el); \
 			continue; \
 		} \
 		if(!isValidFd(el->server.fd)){ \
-			printf("Server FD %d from element %p is not valid!\n", el->server.fd, el); \
+			tprintf("Server FD %d from element %p is not valid!\n", el->server.fd, el); \
 			continue; \
 		} \
 	} while(false)
@@ -372,7 +369,7 @@ int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct
 		struct fdelem *conn = &list->client;
 		while((conn = conn == &list->client ? &list->server : NULL) != NULL) { //First section is ran, then result of conditional is used for loop
 			if(FD_ISSET(conn->fd, &fromSelect.except))
-				printf("File Descriptor %d (%s) was in the `except` list.\n", conn->fd, conn->descriptString);
+				tprintf("File Descriptor %d (%s) was in the `except` list.\n", conn->fd, conn->descriptString);
 			
 			removed += FD_ISSET(conn->fd, &fromSelect.read) && !FD_ISSET(conn->fd, &actedOn.read) ? 1 : 0;
 			removed += FD_ISSET(conn->fd, &fromSelect.write) && !FD_ISSET(conn->fd, &actedOn.write) ? 1 : 0;

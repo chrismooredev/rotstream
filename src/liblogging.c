@@ -163,17 +163,26 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 	MAKE_TUPLE(IPPROTO_MAX),
 };
 
-void tprintf(const char *fmt, ...) {
-	va_list args;
-	va_start(args, fmt);
+void tvfprintf(FILE* stream, const char *fmt, va_list args){
 	assert(tablevel >= 0);
 	assert(fmt != NULL);
 	char* hi = malloc(strlen(fmt) + 1 + tablevel); //Create buffer big enough for string, null, and tabs
 	strcpy(hi+tablevel, fmt); //copy over fmt string after where the tabs go, including \0
 	memset(hi, '\t', tablevel); //set tab character preceding it
-	vprintf(hi, args); //pass to regular printf
-	va_end(args); //dealloc args?
+	vfprintf(stream, hi, args); //pass to regular _printf
 	free(hi); //free memory obtained with malloc
+}
+void tfprintf(FILE* stream, const char *fmt, ...){
+	va_list args;
+	va_start(args, fmt);
+	tvfprintf(stream, fmt, args);
+	va_end(args); //dealloc args?
+}
+void tprintf(const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	tvfprintf(stdout, fmt, args);
+	va_end(args); //dealloc args?
 }
 
 const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]){
@@ -254,15 +263,14 @@ void printSockaddr(int length, struct sockaddr* sockaddrinfo){
 	tprintf("%s:%s", hostname, servname);
 	
 	if(!hostSame || !servSame){
-		printf(" (");
+		_printf(" (");
 		if(!hostSame)
-			printf("%s", hostnumb);
-		if(!servSame){
-			printf(":%s", servnumb);
-		}
-		printf(")\n");
-	} else
-		printf("\n");
+			_printf("%s", hostnumb);
+		if(!servSame)
+			_printf(":%s", servnumb);
+		_printf(")");
+	}
+	_printf("\n");
 }
 
 
