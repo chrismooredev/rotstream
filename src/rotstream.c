@@ -2,11 +2,13 @@
 
 #include "headers/liblogging.h"
 #include "headers/librotstream.h"
+#include "headers/libversion.h"
 
 int8_t  rotateAmount;
 
 int main(int argc, char* argv[]) {
 	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
+		tprintf("%s: Version %d.%d\n", argv[0], VERSION_MAJOR, VERSION_MINOR);
 		tprintf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
 		Exit(1, true);
 	}

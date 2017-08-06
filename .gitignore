@@ -4,17 +4,6 @@ test_getaddrinfo
 rotlin
 rotwin.exe
 
-#https://github.com/github/gitignore/blob/af988f5c1ed081c88e1d4d33945bb2f14d9a9d4e/CMake.gitignore
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
-Testing
-Makefile
-cmake_install.cmake
-install_manifest.txt
-compile_commands.json
-CTestTestfile.cmake
-
 #https://github.com/github/gitignore/blob/af988f5c1ed081c88e1d4d33945bb2f14d9a9d4e/C.gitignore
 # Prerequisites
 *.d

@@ -1,0 +1,9 @@
+#ifndef _H_VERSION
+#define _H_VERSION
+
+#ifdef USE_CMAKE_VERSION
+#define VERSION_MAJOR ${VERSION_MAJOR}
+#define VERSION_MINOR ${VERSION_MINOR}
+#endif
+
+#endif
