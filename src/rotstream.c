@@ -133,7 +133,8 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 				}
 				for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
 					tprintf("Processing %p for read\n", list);
-					INCTAB() { processRead(&fd_list, list, &set, rotateAmount); }
+					INCTAB() { list = processRead(&fd_list, list, &set, rotateAmount); }
+					tprintf("Done reading. list = %p, list->next = %p\n", list, list == NULL ? NULL : list->next);
 				}
 				for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
 					tprintf("Processing %p for write\n", list);

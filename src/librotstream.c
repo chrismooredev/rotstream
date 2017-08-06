@@ -177,6 +177,7 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 		tprintf("Next element is at %p.\n", element->next);
 
 		if(list->next == element) {
+			tprintf("First element. element->next = %p\n", element->next);
 			list->next = element->next;
 			last       = NULL;
 		} else {
@@ -195,7 +196,7 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 		}
 		tprintf("Last element was %p\n", last);
 
-		free(element); //TODO: Free it
+		//free(element); //TODO: Free it
 	}
 	return last;
 }
@@ -302,15 +303,15 @@ void readfromBuf(struct buffer1k *buffer, ssize_t amount){
 }
 
 
-void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* set, int8_t rotateAmount){
+struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* set, int8_t rotateAmount){
 	struct fdelem *connection = &list->client;
-	while(connection != NULL){
-
-		if(FD_ISSET(connection->fd, &set->read)) {
-			assert(connection->buf.length == 0);
+	while(list != NULL && connection != NULL){
+		tprintf("Handing %s...\n", connection->descriptString);
+		if (FD_ISSET(connection->fd, &set->read)) {
+			assert(connection->buf.length == 0); //Shouldn't be reading with data still in the buffer
 
 			connection->buf.length = read(connection->fd, connection->buf.buf, sizeof(connection->buf.buf));
-			//TODO: SHIT
+			
 			if(connection->buf.length == 0){ //* EOF
 				INCTAB() {
 					tprintf("Recieved zero bytes: EOF\n");
@@ -318,11 +319,11 @@ void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcoll
 					FD_CLR(connection->fd, &set->write);
 					FD_CLR(getOpposite(list, connection)->fd, &set->read);
 					FD_CLR(getOpposite(list, connection)->fd, &set->write);
+					tprintf("Calling RemFdPair(%p, %p)\n", head, list);
 					list = RemFdPair(head, list);
-					//connection = NULL; //End loop
+					tprintf("After RemFdPair: list = %p\n", list);
 				}
-				//tablevel--;
-				break;
+				//break;
 			} else if(connection->buf.length == -1) { //* ERROR
 				ExitErrno(90, false);
 				connection->buf.length = 0;
@@ -332,9 +333,15 @@ void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcoll
 				FD_CLR(connection->fd, &set->read);
 			}
 		}
+		tprintf("connection = %p, list = %p\n", connection, list);
 
-		connection = connection == &list->client ? &list->server : NULL;
+		if(list == NULL)
+			connection = NULL;
+		else
+			connection = connection == &list->client ? &list->server : NULL;
 	}
+	tprintf("Reached end of processRead\n");
+	return list;
 }
 void processWrite(struct fdlist* list, fd_set* writeset){
 	//int fd = list->client;

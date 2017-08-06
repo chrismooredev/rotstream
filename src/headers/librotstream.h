@@ -128,7 +128,7 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element);
 void normalizeBuf(struct buffer1k* buffer);
 void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 
-void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
+struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
 void processWrite(struct fdlist* list, fd_set* write);
 int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 #endif
