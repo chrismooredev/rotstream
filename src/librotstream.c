@@ -177,7 +177,7 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 		tprintf("Next element is at %p.\n", element->next);
 
 		if(list->next == element) {
-			tprintf("First element. element->next = %p\n", element->next);
+			//tprintf("First element. element->next = %p\n", element->next);
 			list->next = element->next;
 			last       = NULL;
 		} else {
@@ -192,11 +192,11 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 				}
 				last = elem;
 			}
-			tprintf("LastElement: %p\n", last);
+			//tprintf("LastElement: %p\n", last);
 		}
-		tprintf("Last element was %p\n", last);
+		//tprintf("Last element was %p\n", last);
 
-		//free(element); //TODO: Free it
+		free(element); //TODO: Free it
 	}
 	return last;
 }
@@ -333,14 +333,14 @@ struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct 
 				FD_CLR(connection->fd, &set->read);
 			}
 		}
-		tprintf("connection = %p, list = %p\n", connection, list);
+		//tprintf("connection = %p, list = %p\n", connection, list);
 
 		if(list == NULL)
 			connection = NULL;
 		else
 			connection = connection == &list->client ? &list->server : NULL;
 	}
-	tprintf("Reached end of processRead\n");
+	//tprintf("Reached end of processRead\n");
 	return list;
 }
 void processWrite(struct fdlist* list, fd_set* writeset){
