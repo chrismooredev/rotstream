@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <err.h>
+#include <fcntl.h>
 
 #ifdef __linux
 #include <sys/time.h>
@@ -66,6 +67,7 @@ do { \
 
 #undef max
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define getOpposite(list, elem) (&list->client == elem ? &list->server : &list->client)
 
 #define addToSetIf(cond, fd, set) \
 	do {                          \
@@ -126,6 +128,7 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element);
 void normalizeBuf(struct buffer1k* buffer);
 void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 
+void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
 void processWrite(struct fdlist* list, fd_set* write);
-int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect);
+int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 #endif

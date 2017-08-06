@@ -110,22 +110,22 @@ int getServerSocket(struct addrinfo* server){
 int getRemoteConnection(struct addrinfo* server){
 	int sock    = -1;
 	int conres = -1;
+	int temperrno;
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
 		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK , 0);
 		//fcntl(sock, F_SETFL, O_NONBLOCK);
-		printf("hai\n");
+		printf("Created Socket. Creating Connection...\n");
 		if(sock != -1 || sock == -1){
+			errno = EOK;
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
-			printf("chai\n");
+			printf("Checking result of connect()...\n");
 			if(sock != -1 && (conres == 0 || errno == EINPROGRESS))
 				break;
 		}
 		if(sock == -1) {
 			int errno_cache = errno;
 			close(sock);
-			sock = -1;
-			errno = errno_cache;
 		}
 		sock   = -1;
 		conres = -1;
@@ -170,24 +170,36 @@ struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server, struct
 }
 struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client.fd, element->server.fd, element);
+	struct fdlist *last;
+	INCTAB(){
+		close(element->client.fd);
+		close(element->server.fd);
+		free(element->client.sockaddr); //* malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
+		//free(element->server.sockaddr); //Closed when freeaddrinfo is called
 
-	close(element->client.fd);
-	close(element->server.fd);
-	free(element->client.sockaddr); //* malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
-	//free(element->server.sockaddr); //Closed when freeaddrinfo is called
+		tprintf("Next element is at %p.\n", element->next);
 
-	struct fdlist* last;
-	if(list->next == element) {
-		list->next = element->next;
-		last       = NULL;
-	} else {
-		for(struct fdlist *elem = list->next, *last = elem; elem != NULL; last = elem, elem = elem->next){
-			if(elem == element){
-				last->next = element->next; //Works if element->next is NULL or not
+		if(list->next == element) {
+			list->next = element->next;
+			last       = NULL;
+		} else {
+			last = list->next;
+			for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
+				tprintf("Current Element: %p, Last Element: %p (Searching for %p)\n", elem, last, element);
+				if(elem == element){
+					tprintf("Putting next of %p as %p\n", last, elem->next);
+					last->next = elem->next; //Works if element->next is NULL or not
+					tprintf("last: %p, last->next: %p\n", last, last->next);
+					break;
+				}
+				last = elem;
 			}
+			tprintf("LastElement: %p\n", last);
 		}
+		tprintf("Last element was %p\n", last);
+
+		free(element); //TODO: Free it
 	}
-	//free(element);
 	return last;
 }
 int calcNfds(struct fdlistHead *list, struct fd_setcollection col) {
@@ -201,8 +213,19 @@ int calcNfds(struct fdlistHead *list, struct fd_setcollection col) {
 	return max+1;
 }
 struct fd_setcollection buildSets(struct fdlistHead* list) {
-	struct fd_setcollection sets;
-	FD_ZERO(&sets.read);
+	#define isValidFd(fd) (fcntl(fd, F_GETFD) != -1 || errno != EBADF)
+	#define skipLogPair(el) do { \
+		if(!isValidFd(el->client.fd)){ \
+			printf("Client FD %d from element %p is not valid!\n", el->client.fd, el); \
+			continue; \
+		} \
+		if(!isValidFd(el->server.fd)){ \
+			printf("Server FD %d from element %p is not valid!\n", el->server.fd, el); \
+			continue; \
+		} \
+	} while(false)
+    struct fd_setcollection sets;
+    FD_ZERO(&sets.read);
 	FD_ZERO(&sets.write);
 	FD_ZERO(&sets.except);
 
@@ -212,6 +235,7 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 
 	//* Cycle through, if buffer has no data, add to sets.read
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
+		skipLogPair(elem);
 		addToSetIf(elem->client.buf.length == 0, elem->client.fd, &sets.read);
 		addToSetIf(elem->server.buf.length == 0, elem->server.fd, &sets.read);
 	}
@@ -220,14 +244,15 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
 		normalizeBuf(&(elem->client.buf));
 		normalizeBuf(&(elem->server.buf));
+		skipLogPair(elem);
 
-		socklen_t intsize    = sizeof(int);
-		int client_err = 0;
-		int server_err = 0;
-		int client_res = getsockopt(elem->client.fd, SOL_SOCKET, SO_ERROR, &client_err, &intsize);
-		int       client_errno = errno;
-		int       server_res = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, &server_err, &intsize);
-		int       server_errno = errno;
+		socklen_t	intsize = sizeof(int);
+		int	client_err      = 0;
+		int	server_err      = 0;
+		int	client_res      = getsockopt(elem->client.fd, SOL_SOCKET, SO_ERROR, &client_err, &intsize);
+		int	client_errno    = errno;
+		int	server_res      = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, &server_err, &intsize);
+		int	server_errno    = errno;
 
 		//* The sockets are waiting for data on the other stream, so check the other one
 		addToSetIf(elem->server.buf.length != 0, elem->client.fd, &sets.write);
@@ -278,13 +303,49 @@ void readfromBuf(struct buffer1k *buffer, ssize_t amount){
 		normalizeBuf(buffer);
 	}
 }
+
+
+void processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* set, int8_t rotateAmount){
+	struct fdelem *connection = &list->client;
+	while(connection != NULL){
+
+		if(FD_ISSET(connection->fd, &set->read)) {
+			assert(connection->buf.length == 0);
+
+			connection->buf.length = read(connection->fd, connection->buf.buf, sizeof(connection->buf.buf));
+			//TODO: SHIT
+			if(connection->buf.length == 0){ //* EOF
+				INCTAB() {
+					tprintf("Recieved zero bytes: EOF\n");
+					FD_CLR(connection->fd, &set->read);
+					FD_CLR(connection->fd, &set->write);
+					FD_CLR(getOpposite(list, connection)->fd, &set->read);
+					FD_CLR(getOpposite(list, connection)->fd, &set->write);
+					list = RemFdPair(head, list);
+					//connection = NULL; //End loop
+				}
+				//tablevel--;
+				break;
+			} else if(connection->buf.length == -1) { //* ERROR
+				ExitErrno(90, false);
+				connection->buf.length = 0;
+			} else {
+				tprintf("Got data from %s. (%d bytes)\n", connection->descriptString, connection->buf.length);
+				rotate(rotateAmount, connection->buf.buf, connection->buf.length);
+				FD_CLR(connection->fd, &set->read);
+			}
+		}
+
+		connection = connection == &list->client ? &list->server : NULL;
+	}
+}
 void processWrite(struct fdlist* list, fd_set* writeset){
 	//int fd = list->client;
 	struct fdelem *conn = &list->client;
-	#define getOpposite(list, elem) (&list->client == elem ? &list->server : &list->client)
-
+	
 	while(conn != NULL) {
 		struct fdelem *opp = getOpposite(list, conn);
+
 		if(FD_ISSET(opp->fd, writeset)) {
 			//ssize_t write(int fd, const void *buf, size_t count);
 			tprintf("Write to %d (%s) (Opp buffer contains Len:%zd Ind:%zu)\n", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
@@ -296,13 +357,15 @@ void processWrite(struct fdlist* list, fd_set* writeset){
 			} else {
 				tprintf("Written to %s: %d bytes\n", opp->descriptString, written);
 				readfromBuf(&conn->buf, written);
+				FD_CLR(opp->fd, writeset);
 			}
-			FD_CLR(opp->fd, writeset);
 		}
 		conn = conn == &list->client ? &list->server : NULL;
 	}
 }
-int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct fd_setcollection fromSelect){
+int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata){
+	bool log = *metadata != NULL;
+
 	int removed = FD_ISSET(head->fd, &fromSelect.read) && !FD_ISSET(head->fd, &actedOn.read) ? 1 : 0;
 	//if fromSelect && !fromActedOn
 	for(struct fdlist* list = head->next; list != NULL; list = list->next) {
@@ -310,10 +373,39 @@ int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct
 		while((conn = conn == &list->client ? &list->server : NULL) != NULL) { //First section is ran, then result of conditional is used for loop
 			if(FD_ISSET(conn->fd, &fromSelect.except))
 				printf("File Descriptor %d (%s) was in the `except` list.\n", conn->fd, conn->descriptString);
+			
 			removed += FD_ISSET(conn->fd, &fromSelect.read) && !FD_ISSET(conn->fd, &actedOn.read) ? 1 : 0;
 			removed += FD_ISSET(conn->fd, &fromSelect.write) && !FD_ISSET(conn->fd, &actedOn.write) ? 1 : 0;
 			removed += FD_ISSET(conn->fd, &fromSelect.except) && !FD_ISSET(conn->fd, &actedOn.except) ? 1 : 0;
 		}
 	}
+
+	if(log){
+		tprintf("Creating list of stuff\n");
+		*metadata = calloc(removed + 1, sizeof(char*));
+		int r = 0;
+
+		tprintf("Allocated data\n");
+		for(struct fdlist* list = head->next; list != NULL; list = list->next) {
+			struct fdelem *conn = &list->client;
+			while((conn = conn == &list->client ? &list->server : NULL) != NULL) { //First section is ran, then result of conditional is used for loop
+				char buf[1024];
+				
+				#define lol(fd, origSet, newSet, cat) \
+					if(FD_ISSET(fd, &(origSet.cat)) && !FD_ISSET(fd, &(newSet.cat))) { \
+					sprintf(buf, "File Descriptor %d cleared from %s set.", fd, #cat); \
+					(*metadata)[r++] = strdup(buf); }
+
+					// *((*metadata) + 1)
+
+				lol(conn->fd, fromSelect, actedOn, read);
+				lol(conn->fd, fromSelect, actedOn, write);
+				lol(conn->fd, fromSelect, actedOn, except);
+			}
+		}
+	}
+
+	tprintf("Done creating stuff\n");
+
 	return removed;
 }

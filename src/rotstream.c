@@ -127,46 +127,27 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 					printSockaddr(addrlen, addr);
 
 					int svfd = getRemoteConnection(server);
+
 					AddFdPair(&fd_list, clfd, svfd, addr, addrlen);
 					FD_CLR(fd_list.fd, &set.read);
-				} else {
-					for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
-						tprintf("Processing %p for read\n", list);
-						//INCTAB(){
-							struct fdelem *connection = &list->client;
-							while(connection != NULL){
-								if(FD_ISSET(connection->fd, &set.read)) {
-									assert(connection->buf.length == 0);
-									connection->buf.length = read(connection->fd, connection->buf.buf, sizeof(connection->buf.buf));
-									//TODO: SHIT
-									if(connection->buf.length == 0){ //* EOF
-										INCTAB() {
-										    FD_CLR(connection->fd, &set.read);
-										    list = RemFdPair(&fd_list, list);
-										    //connection = NULL; //End loop
-										}
-									    //tablevel--;
-									    break;
-								    } else if(connection->buf.length == -1) { //* ERROR
-										ExitErrno(90, false);
-										connection->buf.length = 0;
-									} else {
-										tprintf("Got data from %s. (%d bytes)\n", connection->descriptString, connection->buf.length);
-										// TODO: Rotate data
-									    rotate(rotateAmount, connection->buf.buf, connection->buf.length);
-								    }
-							    }
+				}
+				for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
+					tprintf("Processing %p for read\n", list);
+					INCTAB() { processRead(&fd_list, list, &set, rotateAmount); }
+				}
+				for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
+					tprintf("Processing %p for write\n", list);
+					INCTAB(){ processWrite(list, &(set.write)); }
+				}
 
-								connection = connection == &list->client ? &list->server : NULL;
-							}
-						//}
-					}
-					for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
-						tprintf("Processing %p for write\n", list);
-						INCTAB(){ processWrite(list, &set.write); }
+				char** metadata;
+				int handledCount = calcHandled(&fd_list, set, for_calc, &metadata);
+				tprintf("Handled %d/%d sockets.\n", handledCount, ready);
+				INCTAB(){
+					for(int i = 0; i < handledCount; i++){
+						tprintf("%s\n", metadata[i]);
 					}
 				}
-				tprintf("Handled %d/%d sockets.\n", calcHandled(&fd_list, set, for_calc), ready);
 			}
 		}
 		//set = buildSets(&fd_list);
