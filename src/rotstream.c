@@ -8,12 +8,15 @@ int8_t  rotateAmount;
 
 int main(int argc, char* argv[]) {
 	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
-		tprintf("%s: Version %d.%d\n", argv[0], VERSION_MAJOR, VERSION_MINOR);
+		tprintf("%s: Version %d.%d", argv[0], VERSION_MAJOR, VERSION_MINOR);
+		_printf("%s\n", DEBUG ? " Debug Version" : " Release Version");
 		tprintf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
 		Exit(1, true);
 	}
 
+#ifdef DEBUG
 	setbuf(stdout, NULL);
+#endif
 
 	size_t arg_num = 1;
 	struct addrinfo addrinfo_hints = {0};
@@ -24,17 +27,23 @@ int main(int argc, char* argv[]) {
 	addrinfo_hints.ai_flags    = 0; //// AI_CANONNAME;
 
 	errno = 0;
-	rotateAmount = strtol(argv[arg_num++], NULL, 10); //Convert cipher amount as string to long
+
+	long int rawRotate = strtol(argv[arg_num++], NULL, 10); //Convert cipher amount as string to long
 	int rotErrno = errno;
 
-	tprintf("Rotate Amount   : %d\n", rotateAmount);
-	if(rotErrno == ERANGE || !(-254 <= rotateAmount && rotateAmount <= 254)) {
-		tprintf("The RotateAmount is out of range! Try putting it between -254 and 254.\n");
+	tprintf("Rotate Amount(raw): %d\n", rotateAmount);
+	if(rotErrno == ERANGE || !(-128 <= rawRotate && rawRotate <= 255)) {
+		tprintf("The RotateAmount is out of range! Try putting it between -127 and 255.\n");
 		Exit(2, true);
 	}
-	rotateAmount = rotateAmount % 255; // Normalize the cipher, Negatives are preserved
 
-	tprintf("Rotate Amount(n): %d\n", rotateAmount);
+	rotateAmount = rawRotate % 256; // Normalize the cipher, Negatives are preserved
+
+	if(rotateAmount == 0){
+		tprintf("Warning: The RotateAmount is 0! This will act as an ordinary TCP Stream wrapper, without masking contents.");
+	}
+
+	tprintf("Rotate Amount(nor): %d\n", rotateAmount);
 
 	struct addrinfo *server;
 	struct addrinfo *listen;

@@ -1,7 +1,8 @@
-LINC=gcc
+#LINC=gcc
+LINC=clang
 WINC=x86_64-w64-mingw32-gcc
 
-CFLAGS_BASE= -std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment 
+CFLAGS_BASE= -std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -DDEBUG=1
 
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MAJOR=0
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MINOR=2
