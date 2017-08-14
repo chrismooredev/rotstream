@@ -5,6 +5,7 @@
 #include "headers/libversion.h"
 
 int8_t  rotateAmount;
+struct timeval timeout_ref = {.tv_sec = 10, .tv_usec = 0};
 
 int main(int argc, char* argv[]) {
 	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
@@ -17,6 +18,10 @@ int main(int argc, char* argv[]) {
 #ifdef DEBUG
 	setbuf(stdout, NULL);
 #endif
+#ifdef __WINNT
+	WSADATA wsaData;
+	WSAStartup(0x0202, &wsaData); //Version 2.2 of Winsock.dll? // https://msdn.microsoft.com/en-us/library/windows/desktop/ms742213(v=vs.85).aspx
+#endif
 
 	size_t arg_num = 1;
 	struct addrinfo addrinfo_hints = {0};
@@ -26,10 +31,10 @@ int main(int argc, char* argv[]) {
 	addrinfo_hints.ai_protocol = IPPROTO_TCP;
 	addrinfo_hints.ai_flags    = 0; //// AI_CANONNAME;
 
-	errno = 0;
+	SET_LAST_ERROR(0);
 
 	long int rawRotate = strtol(argv[arg_num++], NULL, 10); //Convert cipher amount as string to long
-	int rotErrno = errno;
+	int rotErrno = LAST_SYS_ERROR;
 
 	tprintf("Rotate Amount(raw): %d\n", rotateAmount);
 	if(rotErrno == ERANGE || !(-128 <= rawRotate && rawRotate <= 255)) {
@@ -72,10 +77,6 @@ struct sockaddr_in {
 	char	sin_zero[8];
 };
 */
-#ifdef __WINNT
-	WSADATA wsaData;
-	WSAStartup(0x0202, &wsaData); //Version 2.2 of Winsock.dll? // https://msdn.microsoft.com/en-us/library/windows/desktop/ms742213(v=vs.85).aspx
-#endif
 
 /*
 http://www.nightmare.com/medusa/async_sockets.html
@@ -92,7 +93,7 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 
 	//TODO: Start listening shit
 	//* Setup `select()` data
-	struct timespec   timeout = {.tv_sec = 10, .tv_nsec = 0};
+	struct timeval   timeout = timeout_ref;
 	struct fdlistHead fd_list = {.fd = listenSocket, .next = NULL};
 
 	//! FD_SET(int fd, fd_set *set);
@@ -109,13 +110,23 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 		const struct timespec *timeout,
 		const sigset_t *sigmask);
 	*/
+	/*
+	int select(
+		int nfds,
+		fd_set *readfds,
+		fd_set *writefds,
+        fd_set *exceptfds,
+		struct timeval *timeout);
+	*/
+
+
 	struct fd_setcollection set = buildSets(&fd_list);
 	struct fd_setcollection for_calc;
-	for(int ready = 0;;set = buildSets(&fd_list), ready = pselect(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout, NULL)) {
+	for(int ready = 0;;timeout = timeout_ref, set = buildSets(&fd_list), ready = select(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout)) {
 		if(ready == 0){
 			tprintf("Waiting for connection...\n");
 		} else if(ready == -1) {
-			if(errno != EBADF) {
+			if(LAST_ERROR != EBADF) {
 				ExitErrno(200, false);
 			} else {
 				//TODO: Remove bad FD
@@ -130,7 +141,7 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 					tprintf("Accepting... - ");
 					socklen_t        addrlen = 1024;
 					struct sockaddr *addr = malloc(addrlen); //* free(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
-					int clfd = accept4(fd_list.fd, addr, &addrlen, SOCK_NONBLOCK);
+					int clfd = accept(fd_list.fd, addr, &addrlen);
 					if(clfd == -1) {
 						ExitErrno(27, false);
 					}
@@ -167,6 +178,10 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	//TODO: Become a plugin-able netcat/rotate data
 	//TODO: ???
 	//TODO: Profit!
+
+	#ifdef __WINNT
+	WSACleanup();
+	#endif
 
 	freeaddrinfo(server);
 	freeaddrinfo(listen);

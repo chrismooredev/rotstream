@@ -19,12 +19,15 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #elif __WINNT
+/*#ifdef _WINSOCKAPI_
+#warning somehow _WINSOCKAPI_ is defined
+#endif
+#define _WINSOCKAPI_ someshit*/
 #include <winsock2.h>
 #include <windows.h>
 #include <ws2tcpip.h>
 #include <winbase.h>
 #include <wincon.h>
-#include <winsock.h>
 #include <winerror.h>
 #endif
 
@@ -39,6 +42,8 @@ int tablevel;
 #define INCTAB()                      \
 	MPP_BEFORE(inctab_a, tablevel++;) \
 	MPP_AFTER(inctab_b, tablevel--;)
+
+#define dbg if(DEBUG)
 
 /*
 struct addrinfo {
@@ -98,7 +103,7 @@ EnumTriple EAI_ERROR_VALUES[8 WITHLIN(+2) WITHGNU(+8)];
 EnumTriple AI_FLAGS_VALUES[3 WITHLIN(+4) WITHGNU(+4)];
 EnumTuple AF_ENUM_VALUES[9 WITHLIN(+35) WITHWIN(+25)];
 EnumTuple SOCK_ENUM_VALUES[5 WITHLIN(+2)];
-EnumTuple PROTO_ENUM_VALUES[22 WITHLIN(+4)];
+EnumTuple PROTO_ENUM_VALUES[12 WITHLIN(+14)];
 
 void tvfprintf(FILE *stream, const char *fmt, va_list args); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
 void tfprintf(FILE *stream, const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
@@ -106,7 +111,7 @@ void tprintf(const char *fmt, ...); // Functions similar to printf however prefi
 //Use what is functionally equilavent to printf without triggering compiler warnings.
 #define _printf(format, ...) fprintf(stdout, format, ##__VA_ARGS__)
 
-int printf(const char *format, ...) __attribute_deprecated__;
+int printf(const char *format, ...) __attribute__ ((deprecated));
 
 
 // Get the first value in the enum list, where `value` is equal to EnumValue
@@ -116,8 +121,9 @@ const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]);
 const char* _getEnumValueName(int value, size_t enumSize, EnumTriple enumValues[]);
 #define getEnumTriple(value, enumValues, description) _getEnumTriple(value, ARR_SIZE(enumValues), enumValues, description)
 const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], char** description);
+char *getErrorMessage(int error);
 
-void printAddrinfoList(struct addrinfo* addrinfo);
+void printAddrinfoList(struct addrinfo *addrinfo);
 struct addrinfo* printAddrinfo(struct addrinfo* addressinfo);
 void printSockaddr(int length, struct sockaddr* sockaddrinfo);
 

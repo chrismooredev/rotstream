@@ -12,7 +12,7 @@ struct in_addr ConvertIPv4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
 
 size_t removeIndex(size_t index, size_t len, char** arr){
 	if(index >= len){
-		errno = ERANGE;
+		SET_LAST_ERROR(ERANGE);
 		return -1;
 	}
 	
@@ -61,42 +61,41 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 		hints->ai_family = AF_UNSPEC;
 }
 
-int getServerSocket(struct addrinfo* server){
-	int sock    = -1;
+Socket getServerSocket(struct addrinfo* server){
+	Socket sock    = SOCKET_INVALID;
 	int bindres = -1;
 	int lisres  = -1;
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
-		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK, 0);
+		sock = socket(server->ai_family, server->ai_socktype, 0);
 		
-		int enable = 1; //https://stackoverflow.com/a/24194999/3439288
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
-			perror("setsockopt(SO_REUSEADDR) failed");
-
 		tprintf("Socket: Bound\n");
-		if(sock != -1){
+		if(socketValid(sock)){
+			setSocketNonblocking(sock);
+
+			int enable = 1; //https://stackoverflow.com/a/24194999/3439288
+			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(int)) < 0)
+				perror("setsockopt(SO_REUSEADDR) failed");
+
 			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
 			tprintf("Socket: Bound\n");
 			if(bindres != -1) {
 				lisres = listen(sock, 10);
 				tprintf("Socket: Listened\n");
-				if(sock != -1 && bindres == 0 && lisres == 0)
+				if(socketValid(sock) && bindres == 0 && lisres == 0)
 					break;
 			}
+		} else {
+			CLOSE_SOCKET(sock);
+			sock = SOCKET_INVALID;
 		}
-		if(sock == -1) {
-			int errno_cache = errno;
-			close(sock);
-			sock = -1;
-			errno = errno_cache;
-		}
-		sock   = -1;
+		sock   = SOCKET_INVALID;
 		bindres = -1;
 		lisres  = -1;
 		server  = server->ai_next;
 	}
 	tprintf("Sock: %d, Bind: %d, Listen: %d\n", sock, bindres, lisres);
-	if(sock == -1) {
+	if(socketInvalid(sock)) {
 		ExitErrno(7, "socket(2)");
 	} else if(bindres == -1) {
 		ExitErrno(8, "bind(2)");
@@ -106,32 +105,37 @@ int getServerSocket(struct addrinfo* server){
 
 	return sock;
 }
-int getRemoteConnection(struct addrinfo* server){
-	int sock    = -1;
+Socket getRemoteConnection(struct addrinfo* server){
+	Socket sock    = SOCKET_INVALID;
 	int conres = -1;
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
-		sock = socket(server->ai_family, server->ai_socktype | SOCK_NONBLOCK , 0);
-		//fcntl(sock, F_SETFL, O_NONBLOCK);
+		sock = socket(server->ai_family, server->ai_socktype, 0);
+
 		tprintf("Created Socket. Creating Connection...\n");
-		if(sock != -1){
+		if(socketValid(sock)){
+			setSocketNonblocking(sock);
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
-			tprintf("Checking result of connect()...\n");
-			if(sock != -1 && (conres == 0 || errno == EINPROGRESS))
+			tprintf("Checking result of connect()...  (%d) (Errno = %d)\n", conres, conres != 0 ? LAST_ERROR : 0);
+			if(socketValid(sock) && (conres == 0 || LAST_ERROR == EINPROGRESS || LAST_ERROR == EWOULDBLOCK)){
+				INCTAB() { tprintf("Socket is valid.\n"); }
 				break;
-		}
-		if(sock == -1) {
+			} //else {
+			//	INCTAB() { tprintf("Connect failed. Exiting.\n"); }
+			//	ExitErrno(231, "connect(2)");
+			//}
+		} else {
 			tprintf("Socket creation failed. Closing it.");
-			close(sock);
+			CLOSE_SOCKET(sock);
 		}
-		sock   = -1;
+		sock   = SOCKET_INVALID;
 		conres = -1;
 		server  = server->ai_next;
 	}
 	tprintf("Sock: %d, Connect: %d\n", sock, conres);
-	if(sock == -1) {
+	if(socketInvalid(sock)) {
 		ExitErrno(67, "socket(2)");
-	} else if(conres == -1 && errno != EINPROGRESS) {
+	} else if(conres != 0 && LAST_ERROR != EINPROGRESS && LAST_ERROR != EWOULDBLOCK) {
 		ExitErrno(68, "connect(2)");
 	}
 
@@ -169,8 +173,8 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client.fd, element->server.fd, element);
 	struct fdlist *last;
 	INCTAB(){
-		close(element->client.fd);
-		close(element->server.fd);
+		CLOSE_SOCKET(element->client.fd);
+		CLOSE_SOCKET(element->server.fd);
 		free(element->client.sockaddr); //* malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
 		//free(element->server.sockaddr); //Closed when freeaddrinfo is called
 
@@ -211,7 +215,6 @@ int calcNfds(struct fdlistHead *list, struct fd_setcollection col) {
 	return max+1;
 }
 struct fd_setcollection buildSets(struct fdlistHead* list) {
-	#define isValidFd(fd) (fcntl(fd, F_GETFD) != -1 || errno != EBADF)
 	#define skipLogPair(el) do { \
 		if(!isValidFd(el->client.fd)){ \
 			tprintf("Client FD %d from element %p is not valid!\n", el->client.fd, el); \
@@ -247,17 +250,21 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 		socklen_t	intsize = sizeof(int);
 		int	client_err      = 0;
 		int	server_err      = 0;
-		int	client_res      = getsockopt(elem->client.fd, SOL_SOCKET, SO_ERROR, &client_err, &intsize);
-		int	client_errno    = errno;
-		int	server_res      = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, &server_err, &intsize);
-		int	server_errno    = errno;
+		int	client_res      = getsockopt(elem->client.fd, SOL_SOCKET, SO_ERROR, (char*) &client_err, &intsize);
+		int	client_errno    = LAST_ERROR;
+		int	server_res      = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, (char*) &server_err, &intsize);
+		int	server_errno    = LAST_ERROR;
 
 		//* The sockets are waiting for data on the other stream, so check the other one
 		addToSetIf(elem->server.buf.length != 0, elem->client.fd, &sets.write);
 		addToSetIf(elem->client.buf.length != 0, elem->server.fd, &sets.write);
 
 		if(client_res == -1 || server_res == -1){
-			tprintf("Client_res: %s, Server_res: %s\n", strerror(client_errno), strerror(server_errno));
+			char *cen = getErrorMessage(client_errno);
+			char *sen = getErrorMessage(server_errno);
+			tprintf("Client_res: %s, Server_res: %s\n", cen, sen);
+			free(cen);
+			free(sen);
 		}
 
 		if(FD_ISSET(elem->client.fd, &sets.write)){
@@ -310,7 +317,7 @@ struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct 
 		if (FD_ISSET(connection->fd, &set->read)) {
 			assert(connection->buf.length == 0); //Shouldn't be reading with data still in the buffer
 
-			connection->buf.length = read(connection->fd, connection->buf.buf, sizeof(connection->buf.buf));
+			connection->buf.length = recv(connection->fd, (char*) connection->buf.buf, sizeof(connection->buf.buf), 0);
 			
 			if(connection->buf.length == 0){ //* EOF
 				INCTAB() {
@@ -353,8 +360,8 @@ void processWrite(struct fdlist* list, fd_set* writeset){
 		if(FD_ISSET(opp->fd, writeset)) {
 			//ssize_t write(int fd, const void *buf, size_t count);
 			tprintf("Write to %d (%s) (Opp buffer contains Len:%zd Ind:%zu)\n", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
-			ssize_t written = write(opp->fd, conn->buf.buf + conn->buf.startIndex, conn->buf.length - conn->buf.startIndex);
-			if(written == -1 && errno == EINPROGRESS) {
+			ssize_t written = send(opp->fd, (char*) (conn->buf.buf + conn->buf.startIndex), conn->buf.length - conn->buf.startIndex, 0);
+			if(written == -1 && LAST_ERROR == EINPROGRESS) {
 				tprintf("Had an error that no-one cares about. (EINPROGRESS)");
 			} else if(written == -1) {
 				ExitErrno(101, false);
@@ -412,4 +419,19 @@ int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct
 	tprintf("Done creating stuff\n");
 
 	return removed;
+}
+bool setSocketNonblocking(Socket sock){
+#ifdef __linux
+	int flags = fcntl(sock, F_GETFL, 0);
+	assert(flags != -1);
+	flags |= O_NONBLOCK;
+	int rtn = fcntl(sock, F_SETFL, flags);
+	return rtn == 0;
+#elif __WINNT
+	u_long argp = true;
+	int rtn = ioctlsocket(sock, FIONBIO, &argp);
+	return rtn == 0;
+#else
+#error Unsupported Compiler Target
+#endif
 }

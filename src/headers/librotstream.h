@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <err.h>
 #include <fcntl.h>
 
 #ifdef __linux
@@ -23,11 +22,11 @@
 #include <netdb.h>
 #include <unistd.h>
 #elif __WINNT
-#include <winbase.h>
-#include <wincon.h>
-#include <winsock.h>
+//#include <winsock.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <winbase.h>
+#include <wincon.h>
 #endif
 
 #include "liblogging.h"
@@ -36,29 +35,86 @@
 #define CLOSE_SOCKET(FD) close(FD);
 #elif __WINNT
 #define CLOSE_SOCKET(FD) \
-	closesocket(FD);     \
-	WSACleanup();
+	closesocket(FD);
+#else
+#error Unsupported Compiler Target
 #endif
 
 #ifdef __linux
 #define Socket int
 #elif __WINNT
 #define Socket SOCKET
+#else
+#error Unsupported Compiler Target
+#endif
+
+#ifdef __linux
+#define SOCKET_INVALID -1
+#elif __WINNT
+#define SOCKET_INVALID INVALID_SOCKET
+#else
+#error Unsupported Compiler Target
+#endif
+
+#define socketInvalid(x) ((x) == SOCKET_INVALID)
+#define socketValid(x) ((x) != SOCKET_INVALID)
+
+#ifdef __linux
+#define LAST_ERROR errno
+#elif __WINNT
+#define LAST_ERROR WSAGetLastError()
+#else
+#error Unsupported Compiler Target
+#endif
+#ifdef __linux
+#define LAST_SYS_ERROR errno
+#elif __WINNT
+#define LAST_SYS_ERROR GetLastError()
+#else
+#error Unsupported Compiler Target
+#endif
+
+#ifdef __linux
+#define SET_LAST_ERROR(x) do { errno = (x); } while(0)
+#elif __WINNT
+#define SET_LAST_ERROR(x) WSASetLastError(x)
+#else
+#error Unsupported Compiler Target
+#endif
+
+
+#ifdef __linux
+#define isValidFd(fd) (!(fcntl(fd, F_GETFD) == -1 && errno == EBADF))
+#elif __WINNT
+#define isValidFd(fd) (!(getsockopt(fd, SOL_SOCKET, SO_TYPE, NULL, NULL) && WSAGetLastError() == WSAENOTSOCK))
+#else
+#error Unsupported Compiler Target
+#endif
+
+#ifdef __WINNT
+#undef EWOULDBLOCK
+#undef EINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EINPROGRESS WSAEINPROGRESS
 #endif
 
 #define Exit(n, usererror)                                                                                      \
 	do { fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
 	exit(n); } while(false)
-#define ExitErrno(n, usererror) do {                                  \
-	fprintf(stderr, "Errno: %d (%s)\n\t", errno, strerror(errno)); \
-	Exit(n, usererror);                                            \
-} while(false)
+#define ExitErrno(n, usererror)                                     \
+	do                                                              \
+	{                                                               \
+		char *err_str = getErrorMessage(LAST_ERROR);                \
+		fprintf(stderr, "Errno: %d (%s)\n\t", LAST_ERROR, err_str); \
+		/* //TODO free(err_str);  SEGFAULTS */                      \
+		Exit(n, usererror);                                         \
+	} while (false)
 
 #define CheckAndLogError(NAME, CHECKVAL)                         \
 do { \
 	if(CHECKVAL == -1 || CHECKVAL < 0) {                         \
-		fprintf(stderr, #NAME " Error %d: %s\n", errno, strerror(errno)); \
-		return errno;                                            \
+		fprintf(stderr, #NAME " Error %d: %s\n", LAST_ERROR, strerror(errno)); \
+		return LAST_ERROR;                                            \
 	} while(false)
 
 #define bool2str(x) ((x) ? "true" : "false")
@@ -68,6 +124,7 @@ do { \
 #undef max
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define getOpposite(list, elem) (&list->client == elem ? &list->server : &list->client)
+
 
 #define addToSetIf(cond, fd, set) \
 	do {                          \
@@ -116,8 +173,8 @@ size_t removeIndex(size_t index, size_t len, char** arr);
 void printListHeader(char* header, size_t len, char** list);
 void populateHints(struct addrinfo* hints, int* argc, char* argv[]);
 
-int getServerSocket(struct addrinfo* server);
-int getRemoteConnection(struct addrinfo* server);
+Socket getServerSocket(struct addrinfo* server);
+Socket getRemoteConnection(struct addrinfo* server);
 
 int calcNfds(struct fdlistHead* list, struct fd_setcollection col);
 struct fd_setcollection buildSets(struct fdlistHead* list);
@@ -131,4 +188,5 @@ void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
 void processWrite(struct fdlist* list, fd_set* write);
 int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
+bool setSocketNonblocking(Socket sock);
 #endif

@@ -32,12 +32,12 @@ EnumTriple AI_FLAGS_VALUES[] = {
 	MAKE_TRIPLE(AI_PASSIVE, "Socket address is intended for `bind'."),
 	MAKE_TRIPLE(AI_CANONNAME, "Request for canonical name."),
 	MAKE_TRIPLE(AI_NUMERICHOST, "Don't use name resolution."),
-//#ifdef __linux
+#ifdef __linux
 	MAKE_TRIPLE(AI_V4MAPPED, "IPv4 mapped addresses are acceptable."),
 	MAKE_TRIPLE(AI_ALL, "Return IPv4 mapped and IPv6 addresses."),
 	MAKE_TRIPLE(AI_ADDRCONFIG, "Use configuration of this host to choose returned address type."),
 	MAKE_TRIPLE(AI_NUMERICSERV, "Don't use name resolution."),
-//#endif
+#endif
 #ifdef _USE_GNU
 	MAKE_TRIPLE(AI_IDN, "IDN encode input (assuming it is encoded in the current locale's character set) before looking it up."),
 	MAKE_TRIPLE(AI_CANONIDN, "Translate canonical name from IDN format."),
@@ -138,6 +138,16 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 	MAKE_TUPLE(IPPROTO_EGP),
 	MAKE_TUPLE(IPPROTO_TP),
 	MAKE_TUPLE(IPPROTO_DCCP),
+	MAKE_TUPLE(IPPROTO_RSVP),
+	MAKE_TUPLE(IPPROTO_GRE),
+	MAKE_TUPLE(IPPROTO_MTP),
+	MAKE_TUPLE(IPPROTO_BEETPH),
+	MAKE_TUPLE(IPPROTO_ENCAP),
+	MAKE_TUPLE(IPPROTO_PIM),
+	MAKE_TUPLE(IPPROTO_COMP),
+	MAKE_TUPLE(IPPROTO_SCTP),
+	MAKE_TUPLE(IPPROTO_UDPLITE),
+	MAKE_TUPLE(IPPROTO_MPLS),
 #endif
 	MAKE_TUPLE(IPPROTO_IP),
 	MAKE_TUPLE(IPPROTO_ICMP),
@@ -147,18 +157,8 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 	MAKE_TUPLE(IPPROTO_UDP),
 	MAKE_TUPLE(IPPROTO_IDP),
 	MAKE_TUPLE(IPPROTO_IPV6),
-	MAKE_TUPLE(IPPROTO_RSVP),
-	MAKE_TUPLE(IPPROTO_GRE),
 	MAKE_TUPLE(IPPROTO_ESP),
 	MAKE_TUPLE(IPPROTO_AH),
-	MAKE_TUPLE(IPPROTO_MTP),
-	MAKE_TUPLE(IPPROTO_BEETPH),
-	MAKE_TUPLE(IPPROTO_ENCAP),
-	MAKE_TUPLE(IPPROTO_PIM),
-	MAKE_TUPLE(IPPROTO_COMP),
-	MAKE_TUPLE(IPPROTO_SCTP),
-	MAKE_TUPLE(IPPROTO_UDPLITE),
-	MAKE_TUPLE(IPPROTO_MPLS),
 	MAKE_TUPLE(IPPROTO_RAW),
 	MAKE_TUPLE(IPPROTO_MAX),
 };
@@ -207,6 +207,22 @@ const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], 
 		}
 	}
 	return "Unknown Value";
+}
+char* getErrorMessage(int error){
+#ifdef __linux
+	return strdup(strerror(error));
+#elif __WINNT
+	char *s = NULL;
+	FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
+				NULL, error,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPSTR)&s, 0, NULL);
+	*strchr(s, '\n') = '\0';
+	*strchr(s, '\r') = '\0';
+	return s;
+#else
+#error Unsupported Compiler Target
+#endif
 }
 void printAddrinfoList(struct addrinfo *addrinfo){
 	struct addrinfo* next = addrinfo;
