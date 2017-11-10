@@ -50,7 +50,8 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 		Exit(5, true);
 	}
 
-	*hints = (struct addrinfo) {0};
+	memset(hints, 0, sizeof(struct addrinfo));
+	//*hints = (struct addrinfo) {0};
 	hints->ai_family = AF_UNSPEC;
 
 	if(foundFour)

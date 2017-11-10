@@ -3,12 +3,13 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
+#include <stdarg.h>
 
 //MinGW should provide in a windows build, should be in linux
 

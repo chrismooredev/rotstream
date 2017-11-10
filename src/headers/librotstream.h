@@ -99,7 +99,7 @@
 #endif
 
 #define Exit(n, usererror)                                                                                      \
-	do { fprintf(stderr, "%s at " __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __LINE__);     \
+	do { fprintf(stderr, "%s in %s@" __FILE__ ":%d\n", (usererror ? "Exit Condition reached" : "Error"), __func__, __LINE__);     \
 	exit(n); } while(false)
 #define ExitErrno(n, usererror)                                     \
 	do                                                              \

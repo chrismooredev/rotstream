@@ -1,8 +1,9 @@
 LINC=gcc
-#LINC=clang
+#LINC=/usr/bin/clang
 WINC=x86_64-w64-mingw32-gcc
+#WINC=/usr/bin/clang -target x86_64-pc-win32
 
-CFLAGS_BASE= -std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -DDEBUG=1
+CFLAGS_BASE=-std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -DDEBUG=1
 
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MAJOR=0
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MINOR=2
