@@ -3,11 +3,11 @@ LINC=gcc
 WINC=x86_64-w64-mingw32-gcc
 #WINC=/usr/bin/clang -target x86_64-pc-win32
 
-CFLAGS_BASE=-std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -DDEBUG=1
+CFLAGS_BASE=-c -std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -DDEBUG=1
 
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MAJOR=0
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MINOR=2
-BUILD_DIR= out
+BUILD_DIR=out
 
 #Force action even if target is 'up-to-date'
 #.PHONY: all windows linux test_getaddrinfo clean getstatuse
@@ -15,25 +15,29 @@ BUILD_DIR= out
 define_compiler:
 ifeq "$(MAKECMDGOALS)" "windows"
 COM = $(WINC)
-PRE = windows
+PRE = Windows
 else ifeq "$(MAKECMDGOALS)" "linux"
 COM = $(LINC)
-PRE = linux
+PRE = Linux
 endif
+CFLAGS_BASE := $(CFLAGS_BASE) -DPLATFORM=$(PRE)
 
 compile: define_compiler
-	mkdir -p $(BUILD_DIR)
-	$(COM) $(CFLAGS_BASE) $(CFLAGS) -c -o $(BUILD_DIR)/$(PRE)_rotstream.o src/rotstream.c
-	$(COM) $(CFLAGS_BASE) $(CFLAGS) -c -o $(BUILD_DIR)/$(PRE)_librotstream.o src/librotstream.c
-	$(COM) $(CFLAGS_BASE) $(CFLAGS) -c -o $(BUILD_DIR)/$(PRE)_liblogging.o src/liblogging.c
+	mkdir -p $(BUILD_DIR)/$(PRE)/libs #Creates full heiarchy
+	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/rotstream.o src/rotstream.c
+	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/librotstream.o src/librotstream.c
+	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/liblogging.o src/liblogging.c
 
+rotwin: windows
+rotwin.exe: windows
 windows: compile
-	$(COM) $(BUILD_DIR)/$(PRE)_* -o rotwin.exe -lws2_32
+	$(COM) $(BUILD_DIR)/$(PRE)/*.o $(BUILD_DIR)/$(PRE)/libs/*.o -o rotwin.exe -lws2_32
 
+rotlin: linux
 linux: compile
-	$(COM) $(BUILD_DIR)/$(PRE)_* -o rotlin
+	$(COM) $(BUILD_DIR)/$(PRE)/*.o $(BUILD_DIR)/$(PRE)/libs/*.o -o rotlin
 
 all: windows linux
 
 clean:
-	rm -rf out rotlin rotwin.exe
+	rm -rf $(BUILD_DIR) rotlin rotwin.exe
