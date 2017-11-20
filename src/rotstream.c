@@ -5,8 +5,11 @@
 #include "headers/libversion.h"
 #include "headers/libargs.h"
 
+bool           shouldTerminate;
 int8_t  rotateAmount;
-struct timeval timeout_ref = {.tv_sec = 10, .tv_usec = 0};
+//struct timeval timeout_ref = {.tv_sec = 10, .tv_usec = 0};
+//struct timeval timeout_ref = {.tv_sec = 0, .tv_usec = 1000000};
+struct timeval timeout_ref = {.tv_sec = 1, .tv_usec = 0};
 
 int main(int argc, char* argv[]) {
 #ifdef DEBUG
@@ -16,7 +19,6 @@ int main(int argc, char* argv[]) {
 	WSADATA wsaData;
 	WSAStartup(0x0202, &wsaData); //Version 2.2 of Winsock.dll? // https://msdn.microsoft.com/en-us/library/windows/desktop/ms742213(v=vs.85).aspx
 #endif
-
 	struct arguments args;
 	handleArguments(&argc, argv, &args);
 
@@ -25,27 +27,28 @@ int main(int argc, char* argv[]) {
 		tnprintf("Warning: The RotateAmount is 0! This will act as an ordinary TCP Stream wrapper, without masking contents.");
 	}
 	tnprintf("Rotate Amount(nor): %d", rotateAmount);
-
 	struct addrinfo *server = args.dst;
 	struct addrinfo *listen = args.src;
+	/*
+	struct sockaddr_in {
+		short	sin_family;
+		u_short	sin_port;
+		struct in_addr	sin_addr;
+		char	sin_zero[8];
+	};
+	http://www.nightmare.com/medusa/async_sockets.html
+	http://beej.us/guide/bgnet/output/html/multipage/advanced.html
+	*/
 
-	tprintf("sizeof(struct fdlistHead) = %lu, sizeof(struct fdlist) = %lu, sizeof(struct fdelem) = %lu\n", sizeof(struct fdlistHead), sizeof(struct fdlist), sizeof(struct fdelem));
-
-/*
-struct sockaddr_in {
-	short	sin_family;
-	u_short	sin_port;
-	struct in_addr	sin_addr;
-	char	sin_zero[8];
-};
-*/
-
-/*
-http://www.nightmare.com/medusa/async_sockets.html
-http://beej.us/guide/bgnet/output/html/multipage/advanced.html
-*/
-
-	
+#ifdef __WINNT
+	SetConsoleCtrlHandler(handler_SIGINT, true);
+#elif __linux
+	struct sigaction sigintHandler;
+	sigintHandler.sa_handler = handler_SIGINT;
+	sigemptyset(&sigintHandler.sa_mask);
+	sigintHandler.sa_flags = 0;
+	sigaction(SIGINT, &sigintHandler, NULL);
+#endif
 
 	//TODO: Setup listening socket
 	int listenSocket = getServerSocket(listen);
@@ -84,9 +87,12 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 
 	struct fd_setcollection set = buildSets(&fd_list);
 	struct fd_setcollection for_calc;
-	for(int ready = 0;;timeout = timeout_ref, set = buildSets(&fd_list), ready = select(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout)) {
-		if(ready == 0){
-			tprintf("Waiting for connection...\n");
+	for(int ready = 0; !shouldTerminate; timeout = timeout_ref, set = buildSets(&fd_list), ready = select(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout)) {
+		if(ready != 0)
+			_printf("\n");
+		if(ready == 0) {
+			//tprintf("Waiting for connection...\n");
+			_printf(".");
 		} else if(ready == -1) {
 			if(LAST_ERROR != EBADF) {
 				ExitErrno(200, false);
@@ -95,7 +101,7 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 				tprintf("Must remove bad FD from socket\n");
 			}
 		} else {
-			tprintf("Handling %d connection%s...\n", ready, ready != 1 ? "s" : "");
+			tnprintf("Handling %d connection%s...", ready, ready != 1 ? "s" : "");
 			INCTAB() {
 				for_calc = set;
 				//TODO: bool accepted = acceptConnection(struct fdlistHead * list, fd_list read);
@@ -140,6 +146,10 @@ http://beej.us/guide/bgnet/output/html/multipage/advanced.html
 	//TODO: Become a plugin-able netcat/rotate data
 	//TODO: ???
 	//TODO: Profit!
+
+	if(shouldTerminate){
+		tnprintf("Recieved termination signal... Exiting.");
+	}
 
 	#ifdef __WINNT
 	WSACleanup();

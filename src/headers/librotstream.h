@@ -21,6 +21,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
+#include <signal.h>
 #elif __WINNT
 //#include <winsock.h>
 #include <winsock2.h>
@@ -169,6 +170,8 @@ struct fdlistHead {
 	struct fdlist* next;
 };
 
+extern bool shouldTerminate;
+
 void rotate(int8_t rotateBy, uint8_t* buf, size_t length);
 struct in_addr ConvertIPv4(uint8_t a, uint8_t b, uint8_t c, uint8_t d);
 size_t removeIndex(size_t index, size_t len, char** arr);
@@ -192,10 +195,18 @@ void processWrite(struct fdlist* list, fd_set* write);
 int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 bool setSocketNonblocking(Socket sock);
 
+/*
+	Ctrl-C - Terminates application by setting (_terminate = true)
+*/
+#ifdef __linux
+void handler_SIGINT(int s);
+#elif __WINNT
+BOOL handler_SIGINT(DWORD dwCtrlType);
+#endif
+
 #ifdef DEBUG
 #ifdef __linux
 #include <execinfo.h>
-#include <signal.h>
 #define enableStacktrace() //do { signal(SIGSEGV, errHandler); } while(0)
 void errHandler(int signalno);
 #endif

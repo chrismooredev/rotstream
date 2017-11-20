@@ -119,22 +119,17 @@ Socket getRemoteConnection(struct addrinfo* server){
 		if(socketValid(sock)){
 			setSocketNonblocking(sock);
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
-			if(conres == -1){
+
+			
+			if(socketValid(sock) && (conres == 0 || LAST_ERROR == EINPROGRESS || LAST_ERROR == EWOULDBLOCK)){
+				INCTAB() { tnprintf("connect() successful!"); }
+				break;
+			} else {
 				int   err    = LAST_ERROR;
 				char* errStr = getErrorMessage(err);
 				tprintf("Checking result of connect()...  (%d) (Errno = %d - %s)\n", conres, conres != 0 ? err : 0, errStr);
 				free(errStr);
-			} else {
-				tnprintf("connect() successful!");
 			}
-			
-			if(socketValid(sock) && (conres == 0 || LAST_ERROR == EINPROGRESS || LAST_ERROR == EWOULDBLOCK)){
-				INCTAB() { tprintf("Socket is valid.\n"); }
-				break;
-			} //else {
-			//	INCTAB() { tprintf("Connect failed. Exiting.\n"); }
-			//	ExitErrno(231, "connect(2)");
-			//}
 		} else {
 			tprintf("Socket creation failed. Closing it.");
 			CLOSE_SOCKET(sock);
@@ -280,11 +275,16 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 
 		if(FD_ISSET(elem->client.fd, &sets.write)){
 			if(client_err != 0){
-				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->client.fd, client_err, strerror(client_err));
+				char* errStr = getErrorMessage(client_err);
+				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->client.fd, client_err, errStr);
+				free(errStr);
 			}
-		}		if(FD_ISSET(elem->server.fd, &sets.write)){
+		}
+		if(FD_ISSET(elem->server.fd, &sets.write)){
 			if(server_err != 0){
-				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->server.fd, server_err, strerror(server_err));
+				char* errStr = getErrorMessage(server_err);
+				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->server.fd, server_err, errStr);
+				free(errStr);
 			}
 		}
 	}
@@ -446,6 +446,27 @@ bool setSocketNonblocking(Socket sock){
 #error Unsupported Compiler Target
 #endif
 }
+
+/*
+	Ctrl-C - Terminates application by setting (_terminate = true)
+*/
+#ifdef __linux
+void handler_SIGINT(int s) {
+	shouldTerminate = true;
+}
+#elif __WINNT
+BOOL handler_SIGINT(DWORD dwCtrlType) {
+	switch(dwCtrlType){
+		case CTRL_C_EVENT:
+		case CTRL_BREAK_EVENT:
+		case CTRL_CLOSE_EVENT:
+			shouldTerminate = true;
+			return true;
+		default:
+			return false;
+	}
+}
+#endif
 
 #ifdef DEBUG
 #ifdef __linux
