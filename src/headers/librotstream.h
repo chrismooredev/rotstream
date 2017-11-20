@@ -30,6 +30,7 @@
 #endif
 
 #include "liblogging.h"
+#include "../libs/argtable3.h"
 
 #ifdef __linux
 #define CLOSE_SOCKET(FD) close(FD);
@@ -149,6 +150,7 @@ struct fdelem {
 	struct sockaddr* sockaddr;
 	int              sockaddrlen;
 };
+
 /*
 union fdlist_u {
 	struct fdlist list;
@@ -189,4 +191,16 @@ struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct 
 void processWrite(struct fdlist* list, fd_set* write);
 int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 bool setSocketNonblocking(Socket sock);
+
+#ifdef DEBUG
+#ifdef __linux
+#include <execinfo.h>
+#include <signal.h>
+#define enableStacktrace() //do { signal(SIGSEGV, errHandler); } while(0)
+void errHandler(int signalno);
+#endif
+#endif
+#ifndef enableStacktrace
+#define enableStacktrace()
+#endif
 #endif

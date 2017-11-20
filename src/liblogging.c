@@ -163,26 +163,57 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 	MAKE_TUPLE(IPPROTO_MAX),
 };
 
-void tvfprintf(FILE* stream, const char *fmt, va_list args){
-	assert(tablevel >= 0);
+int tvfprintf(FILE* stream, const char *fmt, va_list args){
+	//assert(tablevel >= 0);
 	assert(fmt != NULL);
-	char* hi = malloc(strlen(fmt) + 1 + tablevel); //Create buffer big enough for string, null, and tabs
-	strcpy(hi+tablevel, fmt); //copy over fmt string after where the tabs go, including \0
-	memset(hi, '\t', tablevel); //set tab character preceding it
-	vfprintf(stream, hi, args); //pass to regular _printf
-	free(hi); //free memory obtained with malloc
+	int tblvl    = tablevel < 0 ? 0 : tablevel;
+	int totalLen = strlen(fmt) + 1 + tblvl;
+	//register void* sp asm("sp");
+	//_printf("Creating VLA on stack space now... (sp=%p)\n", sp);
+	char hi[totalLen];
+	//_printf("Created  VLA on stack space...     (sp=%p)\n", sp);
+	//_printf("Creating memory zone size=%d...", totalLen);
+	//char* hi = malloc(totalLen); //Create buffer big enough for string, null, and tabs
+	//_printf(" Done! Addr=%p\n", hi);
+	//if(hi == -1) {
+	//	_printf("malloc errored!\n");
+	//}
+	strcpy(hi+tblvl, fmt); //copy over fmt string after where the tabs go, including \0
+	memset(hi, '\t', tblvl); //set tab character preceding it
+	//_printf("Calling vprintf\n");
+	//_printf("Stream=%d, &Str=%p, strlen=%lu\n", *stream, hi, strlen(hi));
+	return vfprintf(stream, hi, args); //pass to regular _printf
+	//_printf("Done with tvprintf\n");
+	//free(hi); //free memory obtained with malloc
 }
-void tfprintf(FILE* stream, const char *fmt, ...){
+int tfprintf(FILE* stream, const char *fmt, ...){
 	va_list args;
 	va_start(args, fmt);
-	tvfprintf(stream, fmt, args);
+	int rtn = tvfprintf(stream, fmt, args);
 	va_end(args); //dealloc args?
+	return rtn;
 }
-void tprintf(const char *fmt, ...) {
+int tnprintf(const char *fmt, ...) {
+	assert(fmt != NULL);
 	va_list args;
 	va_start(args, fmt);
-	tvfprintf(stdout, fmt, args);
+
+	char* nl       = WITHWIN("\r\n") WITHLIN("\n");
+	int   totalLen = strlen(fmt) + strlen(nl) + 1; //strlength + \0 + newline
+	char hi[totalLen];
+	strcpy(hi, fmt); //copy over fmt string after where the tabs go, including \0
+	strcpy(hi + strlen(fmt), nl);
+	hi[totalLen - 1] = '\0';
+	int rtn = tvfprintf(stdout, hi, args); //pass to regular _printf
 	va_end(args); //dealloc args?
+	return rtn;
+}
+int tprintf(const char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	int rtn = tvfprintf(stdout, fmt, args);
+	va_end(args); //dealloc args?
+	return rtn;
 }
 
 const char* _getEnumValue(int value, size_t enumSize, EnumTuple enumValues[]){
@@ -228,7 +259,7 @@ void printAddrinfoList(struct addrinfo *addrinfo){
 	struct addrinfo* next = addrinfo;
 	int              count = 1;
 	do {
-		tprintf("Addrinfo #%d: \n", next, count++);
+		tnprintf("Addrinfo #%d (0x%p): ", count++, next);
 		INCTAB(){
 			next = printAddrinfo(next);
 		}
@@ -276,14 +307,27 @@ void printSockaddr(int length, struct sockaddr* sockaddrinfo){
 
 	bool hostSame = strcmp(hostname, hostnumb) == 0;
 	bool servSame = strcmp(servname, servnumb) == 0;
-	tprintf("%s:%s", hostname, servname);
-	
+	tprintf("");
+	if(hostSame)
+		_printf("[");
+	_printf("%s", hostname);
+	if(hostSame)
+		_printf("]");
+
+	_printf(":%s", servname);
+
 	if(!hostSame || !servSame){
 		_printf(" (");
-		if(!hostSame)
+		if(!hostSame){
+			if(!servSame && sockaddrinfo->sa_family == AF_INET6)
+				_printf("[");
 			_printf("%s", hostnumb);
-		if(!servSame)
+		}
+		if(!servSame){
+			if(!hostSame && sockaddrinfo->sa_family == AF_INET6)
+				_printf("]");
 			_printf(":%s", servnumb);
+		}
 		_printf(")");
 	}
 	_printf("\n");

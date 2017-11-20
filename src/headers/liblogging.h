@@ -32,13 +32,16 @@
 #include <winerror.h>
 #endif
 
-#include "mp.h"
+#include "../libs/mp.h"
 
 int tablevel;
 
 #define MAKE_TUPLE(x) {.value = x, .name = #x}
 #define MAKE_TRIPLE(x, y) {.value = x, .name = #x, .description = y}
 #define ARR_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
+#define _STRINGIZE(x) #x
+#define STRINGIZE(x) _STRINGIZE(x)
 
 #define INCTAB()                      \
 	MPP_BEFORE(inctab_a, tablevel++;) \
@@ -100,20 +103,30 @@ typedef struct enumtriple {
 //}
 //#endregion
 
+
 EnumTriple EAI_ERROR_VALUES[8 WITHLIN(+2) WITHGNU(+8)];
 EnumTriple AI_FLAGS_VALUES[3 WITHLIN(+4) WITHGNU(+4)];
 EnumTuple AF_ENUM_VALUES[9 WITHLIN(+35) WITHWIN(+25)];
 EnumTuple SOCK_ENUM_VALUES[5 WITHLIN(+2)];
 EnumTuple PROTO_ENUM_VALUES[12 WITHLIN(+14)];
 
-void tvfprintf(FILE *stream, const char *fmt, va_list args); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
-void tfprintf(FILE *stream, const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
-void tprintf(const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+enum RETURN_CODES {
+	NO_ERRORS = 0,
+	NO_ERROR_HELPV = 1,
+	ERROR_SYNTAX = 2,
+	ERROR_DNS = 3,
+	ERROR_OTHER = 100
+};
+
+int tvfprintf(FILE *stream, const char *fmt, va_list args); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+int tfprintf(FILE *stream, const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+int tnprintf(const char* fmt, ...); // Identical to tprintf, but adds a newline to the end
+int tprintf(const char* fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
 //Use what is functionally equilavent to printf without triggering compiler warnings.
 #define _printf(format, ...) fprintf(stdout, format, ##__VA_ARGS__)
 
 int printf(const char *format, ...) __attribute__ ((deprecated));
-
+//void exit(int __status) __attribute__ ((deprecated));
 
 // Get the first value in the enum list, where `value` is equal to EnumValue
 #define getEnumValue(value, enumValues) _getEnumValue(value, ARR_SIZE(enumValues), enumValues)

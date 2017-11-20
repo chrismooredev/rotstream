@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
 	} else {
 		char *des = NULL;
 		const char *err = getEnumTriple(status, EAI_ERROR_VALUES, &des);
-		printf("getaddrinfo Error: %s (%s)\n", des, err);
+		_printf("getaddrinfo Error: %s (%s)\n", des, err);
 	}
 	return status;
 }

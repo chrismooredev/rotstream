@@ -24,9 +24,11 @@ CFLAGS_BASE := $(CFLAGS_BASE) -DPLATFORM=$(PRE)
 
 compile: define_compiler
 	mkdir -p $(BUILD_DIR)/$(PRE)/libs #Creates full heiarchy
+	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/libs/argtable3.o src/libs/argtable3.c
 	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/rotstream.o src/rotstream.c
 	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/librotstream.o src/librotstream.c
 	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/liblogging.o src/liblogging.c
+	$(COM) $(CFLAGS_BASE) $(CFLAGS) -o $(BUILD_DIR)/$(PRE)/libargs.o src/libargs.c
 
 rotwin: windows
 rotwin.exe: windows

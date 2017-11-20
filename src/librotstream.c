@@ -69,8 +69,8 @@ Socket getServerSocket(struct addrinfo* server){
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
 		sock = socket(server->ai_family, server->ai_socktype, 0);
-		
-		tprintf("Socket: Bound\n");
+		tprintf("Socket: Bound.1\n");
+		//assert(socketValid(sock));
 		if(socketValid(sock)){
 			setSocketNonblocking(sock);
 
@@ -79,7 +79,7 @@ Socket getServerSocket(struct addrinfo* server){
 				perror("setsockopt(SO_REUSEADDR) failed");
 
 			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
-			tprintf("Socket: Bound\n");
+			tprintf("Socket: Bound.2\n");
 			if(bindres != -1) {
 				lisres = listen(sock, 10);
 				tprintf("Socket: Listened\n");
@@ -89,6 +89,8 @@ Socket getServerSocket(struct addrinfo* server){
 		} else {
 			CLOSE_SOCKET(sock);
 			sock = SOCKET_INVALID;
+			assert(sock != EAI_BADFLAGS);
+			tnprintf("Socket %d was invalid: %s", sock, getEnumValueName(sock, EAI_ERROR_VALUES));
 		}
 		sock   = SOCKET_INVALID;
 		bindres = -1;
@@ -117,7 +119,15 @@ Socket getRemoteConnection(struct addrinfo* server){
 		if(socketValid(sock)){
 			setSocketNonblocking(sock);
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
-			tprintf("Checking result of connect()...  (%d) (Errno = %d)\n", conres, conres != 0 ? LAST_ERROR : 0);
+			if(conres == -1){
+				int   err    = LAST_ERROR;
+				char* errStr = getErrorMessage(err);
+				tprintf("Checking result of connect()...  (%d) (Errno = %d - %s)\n", conres, conres != 0 ? err : 0, errStr);
+				free(errStr);
+			} else {
+				tnprintf("connect() successful!");
+			}
+			
 			if(socketValid(sock) && (conres == 0 || LAST_ERROR == EINPROGRESS || LAST_ERROR == EWOULDBLOCK)){
 				INCTAB() { tprintf("Socket is valid.\n"); }
 				break;
@@ -436,3 +446,20 @@ bool setSocketNonblocking(Socket sock){
 #error Unsupported Compiler Target
 #endif
 }
+
+#ifdef DEBUG
+#ifdef __linux
+void errHandler(int signalno){
+	void *array[10];
+	size_t size;
+
+	// get void*'s for all entries on the stack
+	size = backtrace(array, 10);
+
+	// print out all the frames to stderr
+	fprintf(stderr, "Error: signal %d:\n", signalno);
+	backtrace_symbols_fd(array, size, STDERR_FILENO);
+	exit(127);
+}
+#endif
+#endif

@@ -3,18 +3,12 @@
 #include "headers/liblogging.h"
 #include "headers/librotstream.h"
 #include "headers/libversion.h"
+#include "headers/libargs.h"
 
 int8_t  rotateAmount;
 struct timeval timeout_ref = {.tv_sec = 10, .tv_usec = 0};
 
 int main(int argc, char* argv[]) {
-	if(argc < 4 + 1 || argc > 6 + 1) { //+1 for program name
-		tprintf("%s: Version %d.%d", argv[0], VERSION_MAJOR, VERSION_MINOR);
-		_printf("%s\n", DEBUG ? " Debug Version" : " Release Version");
-		tprintf("%s [-4] <RotateAmount> <RemoteTargetPort> <RemoteTargetAddr> <LocalListenPort> [LocalListenAddr=0.0.0.0/::]\n", argv[0]);
-		Exit(1, true);
-	}
-
 #ifdef DEBUG
 	setbuf(stdout, NULL);
 #endif
@@ -23,49 +17,17 @@ int main(int argc, char* argv[]) {
 	WSAStartup(0x0202, &wsaData); //Version 2.2 of Winsock.dll? // https://msdn.microsoft.com/en-us/library/windows/desktop/ms742213(v=vs.85).aspx
 #endif
 
-	size_t arg_num = 1;
-	struct addrinfo addrinfo_hints = {0};
-	populateHints(&addrinfo_hints, &argc, argv);
+	struct arguments args;
+	handleArguments(&argc, argv, &args);
 
-	addrinfo_hints.ai_socktype = SOCK_STREAM;
-	addrinfo_hints.ai_protocol = IPPROTO_TCP;
-	addrinfo_hints.ai_flags    = 0; //// AI_CANONNAME;
-
-	SET_LAST_ERROR(0);
-
-	long int rawRotate = strtol(argv[arg_num++], NULL, 10); //Convert cipher amount as string to long
-	int rotErrno = LAST_SYS_ERROR;
-
-	tprintf("Rotate Amount(raw): %d\n", rotateAmount);
-	if(rotErrno == ERANGE || !(-128 <= rawRotate && rawRotate <= 255)) {
-		tprintf("The RotateAmount is out of range! Try putting it between -127 and 255.\n");
-		Exit(2, true);
-	}
-
-	rotateAmount = rawRotate % 256; // Normalize the cipher, Negatives are preserved
-
+	rotateAmount = args.rot; // Normalize the cipher, Negatives are preserved
 	if(rotateAmount == 0){
-		tprintf("Warning: The RotateAmount is 0! This will act as an ordinary TCP Stream wrapper, without masking contents.");
+		tnprintf("Warning: The RotateAmount is 0! This will act as an ordinary TCP Stream wrapper, without masking contents.");
 	}
+	tnprintf("Rotate Amount(nor): %d", rotateAmount);
 
-	tprintf("Rotate Amount(nor): %d\n", rotateAmount);
-
-	struct addrinfo *server;
-	struct addrinfo *listen;
-	int result = getaddrinfo(argv[arg_num+1], argv[arg_num], &addrinfo_hints, &server);
-	
-	arg_num += 2;
-	addrinfo_hints.ai_flags |= AI_PASSIVE;
-	int result2 = getaddrinfo(arg_num+1 <= argc ? argv[arg_num+1] : NULL, argv[arg_num], &addrinfo_hints, &listen);
-
-	if(result != 0){
-		tprintf("Result != 0\n");
-	}
-	if(result2 != 0){
-		tprintf("Result2 != 0\n");
-	}
-
-	arg_num++;
+	struct addrinfo *server = args.dst;
+	struct addrinfo *listen = args.src;
 
 	tprintf("sizeof(struct fdlistHead) = %lu, sizeof(struct fdlist) = %lu, sizeof(struct fdelem) = %lu\n", sizeof(struct fdlistHead), sizeof(struct fdlist), sizeof(struct fdelem));
 
