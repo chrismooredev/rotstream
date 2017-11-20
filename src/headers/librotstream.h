@@ -182,7 +182,7 @@ size_t removeIndex(size_t index, size_t len, char** arr);
 void printListHeader(char* header, size_t len, char** list);
 void populateHints(struct addrinfo* hints, int* argc, char* argv[]);
 
-Socket getServerSocket(struct addrinfo* server, int count, Socket* sockarr);
+void getServerSocket(struct addrinfo* server, int count, Socket* sockarr);
 Socket getRemoteConnection(struct addrinfo* server);
 
 int calcNfds(struct fdlistenHead* list, struct fd_setcollection col);

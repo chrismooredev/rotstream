@@ -29,17 +29,7 @@ int main(int argc, char* argv[]) {
 	tnprintf("Rotate Amount(nor): %d", rotateAmount);
 	struct addrinfo *server = args.dst;
 	struct addrinfo *listen = args.src;
-	/*
-	struct sockaddr_in {
-		short	sin_family;
-		u_short	sin_port;
-		struct in_addr	sin_addr;
-		char	sin_zero[8];
-	};
-	http://www.nightmare.com/medusa/async_sockets.html
-	http://beej.us/guide/bgnet/output/html/multipage/advanced.html
-	*/
-
+	
 #ifdef __WINNT
 	SetConsoleCtrlHandler(handler_SIGINT, true);
 #elif __linux
@@ -174,18 +164,3 @@ int main(int argc, char* argv[]) {
 	freeaddrinfo(listen);
 	return 0;
 }
-
-/*
-
-	articulate c'mon
-	do the thing
-
-	remove from list if EOF (read() == 0)
-	add new connections to list
-	figure out why select isn't blocking
-	figure out difference in read/write
-	kick self in foot
-	just forward data for now, rotate can come later.
-	only accept data that can be written? dunno
-
-*/

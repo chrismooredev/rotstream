@@ -164,27 +164,13 @@ EnumTuple PROTO_ENUM_VALUES[] = {
 };
 
 int tvfprintf(FILE* stream, const char *fmt, va_list args){
-	//assert(tablevel >= 0);
 	assert(fmt != NULL);
 	int tblvl    = tablevel < 0 ? 0 : tablevel;
 	int totalLen = strlen(fmt) + 1 + tblvl;
-	//register void* sp asm("sp");
-	//_printf("Creating VLA on stack space now... (sp=%p)\n", sp);
 	char hi[totalLen];
-	//_printf("Created  VLA on stack space...     (sp=%p)\n", sp);
-	//_printf("Creating memory zone size=%d...", totalLen);
-	//char* hi = malloc(totalLen); //Create buffer big enough for string, null, and tabs
-	//_printf(" Done! Addr=%p\n", hi);
-	//if(hi == -1) {
-	//	_printf("malloc errored!\n");
-	//}
 	strcpy(hi+tblvl, fmt); //copy over fmt string after where the tabs go, including \0
 	memset(hi, '\t', tblvl); //set tab character preceding it
-	//_printf("Calling vprintf\n");
-	//_printf("Stream=%d, &Str=%p, strlen=%lu\n", *stream, hi, strlen(hi));
 	return vfprintf(stream, hi, args); //pass to regular _printf
-	//_printf("Done with tvprintf\n");
-	//free(hi); //free memory obtained with malloc
 }
 int tfprintf(FILE* stream, const char *fmt, ...){
 	va_list args;
@@ -276,7 +262,6 @@ struct addrinfo* printAddrinfo(struct addrinfo* addressinfo){
 	tprintf("ai_socktype:  %d (%s)\n", addr->ai_socktype, getEnumValue(info.ai_socktype, SOCK_ENUM_VALUES));
 	tprintf("ai_protocol:  %d (%s)\n", addr->ai_protocol, getEnumValue(info.ai_protocol, PROTO_ENUM_VALUES));
 	tprintf("ai_addrlen:   %"PRI_SOCKLENT"\n", info.ai_addrlen);
-	//tprintf("ai_addr: *%p\n", info.ai_addr);
 	INCTAB() {
 		printSockaddr(info.ai_addrlen, info.ai_addr);
 	}

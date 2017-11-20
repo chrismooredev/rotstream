@@ -62,7 +62,7 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 		hints->ai_family = AF_UNSPEC;
 }
 
-Socket getServerSocket(struct addrinfo* server, int sockcount, Socket* sockarr){
+void getServerSocket(struct addrinfo* server, int sockcount, Socket* sockarr){
 	//struct addrinfo* orig_server = server;
 	int              count       = 0;
 
@@ -106,53 +106,6 @@ Socket getServerSocket(struct addrinfo* server, int sockcount, Socket* sockarr){
 		sockarr[count++] = sock;
 		server = server->ai_next;
 	}
-	return 0;
-	/*
-	Socket sock    = SOCKET_INVALID;
-	int bindres = -1;
-	int lisres  = -1;
-	while(server != NULL) {
-		//int socket(int domain, int type, int protocol);
-		sock = socket(server->ai_family, server->ai_socktype, 0);
-		tnprintf("Socket: Bound.1");
-		//assert(socketValid(sock));
-		if(socketValid(sock)){
-			setSocketNonblocking(sock);
-
-			int enable = 1; //https://stackoverflow.com/a/24194999/3439288
-			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(int)) < 0)
-				perror("setsockopt(SO_REUSEADDR) failed");
-
-			bindres = bind(sock, server->ai_addr, server->ai_addrlen);
-			tprintf("Socket: Bound.2\n");
-			if(bindres != -1) {
-				lisres = listen(sock, 10);
-				tprintf("Socket: Listened\n");
-				if(socketValid(sock) && bindres == 0 && lisres == 0)
-					break;
-			}
-		} else {
-			CLOSE_SOCKET(sock);
-			sock = SOCKET_INVALID;
-			assert(sock != EAI_BADFLAGS);
-			tnprintf("Socket %d was invalid: %s", sock, getEnumValueName(sock, EAI_ERROR_VALUES));
-		}
-		sock   = SOCKET_INVALID;
-		bindres = -1;
-		lisres  = -1;
-		server  = server->ai_next;
-	}
-	tprintf("Sock: %d, Bind: %d, Listen: %d\n", sock, bindres, lisres);
-	if(socketInvalid(sock)) {
-		ExitErrno(7, "socket(2)");
-	} else if(bindres == -1) {
-		ExitErrno(8, "bind(2)");
-	} else if(lisres == -1) {
-		ExitErrno(9, "listen(2)");
-	}
-
-	return sock;
-	*/
 }
 Socket getRemoteConnection(struct addrinfo* server){
 	Socket sock    = SOCKET_INVALID;

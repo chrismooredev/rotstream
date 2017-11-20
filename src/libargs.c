@@ -188,15 +188,6 @@ int getAddressTargets(const char* name, const char* service, enum IPvEnum ipv, s
 	return getaddrinfo(name, service, &addrinfo_hints, result);
 }
 
-/*struct argumentsRaw {
-	bool silent;
-	bool        rotSet;
-	int         rot;
-	const char* dstIp;
-	const char* dstPort;
-	const char* srcIp;
-	const char* srcPort;
-};*/
 void printArgsRaw(struct argumentsRaw* raw){
 	tnprintf("Silent: %s", bool2str(raw->silent));
 	tnprintf("Custom rotation: %s", bool2str(raw->rotSet));
