@@ -265,7 +265,6 @@ void printAddrinfoList(struct addrinfo *addrinfo){
 		}
 	} while(next != NULL);
 }
-
 struct addrinfo* printAddrinfo(struct addrinfo* addressinfo){
 	struct addrinfo info = *addressinfo;
 	struct addrinfo *addr = addressinfo;
@@ -276,7 +275,7 @@ struct addrinfo* printAddrinfo(struct addrinfo* addressinfo){
 	tprintf("ai_family:    %d (%s)\n", info.ai_family, getEnumValue(info.ai_family, AF_ENUM_VALUES));
 	tprintf("ai_socktype:  %d (%s)\n", addr->ai_socktype, getEnumValue(info.ai_socktype, SOCK_ENUM_VALUES));
 	tprintf("ai_protocol:  %d (%s)\n", addr->ai_protocol, getEnumValue(info.ai_protocol, PROTO_ENUM_VALUES));
-	tprintf("ai_addrlen:   %d\n", info.ai_addrlen);
+	tprintf("ai_addrlen:   %"PRI_SOCKLENT"\n", info.ai_addrlen);
 	//tprintf("ai_addr: *%p\n", info.ai_addr);
 	INCTAB() {
 		printSockaddr(info.ai_addrlen, info.ai_addr);

@@ -23,7 +23,7 @@ size_t removeIndex(size_t index, size_t len, char** arr){
 	return len-1; //Return the new size
 }
 void printListHeader(char* header, size_t len, char** list){
-	tprintf("%s: (%lu)\n", header, len);
+	tprintf("%s: (%"PRI_SIZET")\n", header, len);
 	INCTAB() for(int i = 0; i < len; i++){
 		tprintf("%d (%p)", i, *list+i);
 		tprintf("%s\n", list[i]);
@@ -62,14 +62,59 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 		hints->ai_family = AF_UNSPEC;
 }
 
-Socket getServerSocket(struct addrinfo* server){
+Socket getServerSocket(struct addrinfo* server, int sockcount, Socket* sockarr){
+	//struct addrinfo* orig_server = server;
+	int              count       = 0;
+
+	while(server != NULL){
+		//Socket *sock = &sockarr[count];
+		Socket  sock = socket(server->ai_family, server->ai_socktype, 0);
+		printErrIfErr(sock, LAST_ERROR);
+		tnprintf("Socket: Created");
+		//TODO: EACCES EAFNOSUPPORT EINVAL EMFILE ENFILE ENOBUFS ENOMEM EPROTONOSUPPORT
+		//TODO: WSAEMFILE WSAENOBUF
+		assert(socketValid(sock));
+		setSocketNonblocking(sock);
+
+		//Allows quick testing by enabling attaching to a used port
+		int enable = 1; //https://stackoverflow.com/a/24194999/3439288
+		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(int)) < 0)
+			perror("setsockopt(SO_REUSEADDR) failed");
+
+		if(server->ai_family == AF_INET6){
+			int v6only = 1;
+			if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char*) &v6only, sizeof(v6only)) < 0)
+				perror("setsockopt(IPV6_V6ONLY) failed");
+		}
+
+		int bindres = bind(sock, server->ai_addr, server->ai_addrlen);
+		printErrIfErr(bindres, LAST_ERROR);
+		tnprintf("Socket: Bound");
+		assert(bindres != -1); //Couldn't find any valid (probable) error cases for `bind'
+		//TODO: EACCES EADDRINUSE EBADF EINVAL ENOTSOCK EADDRNOTAVAIL EFAULT ELOOP ENAMETOOLONG ENOENT ENOMEM ENOTDIR EROFS
+		//TODO: WSAENETDOWN WSAENOBUFS
+
+		int lisres = listen(sock, 10);
+		printErrIfErr(lisres, LAST_ERROR);
+		tnprintf("Socket: Listening");
+		assert(lisres != -1);
+		//TODO: EADDRINUSE EOPNOTSUPP
+
+		//if(socketValid(sock) && bindres == 0 && lisres == 0)
+		//	break;
+
+		sockarr[count++] = sock;
+		server = server->ai_next;
+	}
+	return 0;
+	/*
 	Socket sock    = SOCKET_INVALID;
 	int bindres = -1;
 	int lisres  = -1;
 	while(server != NULL) {
 		//int socket(int domain, int type, int protocol);
 		sock = socket(server->ai_family, server->ai_socktype, 0);
-		tprintf("Socket: Bound.1\n");
+		tnprintf("Socket: Bound.1");
 		//assert(socketValid(sock));
 		if(socketValid(sock)){
 			setSocketNonblocking(sock);
@@ -107,6 +152,7 @@ Socket getServerSocket(struct addrinfo* server){
 	}
 
 	return sock;
+	*/
 }
 Socket getRemoteConnection(struct addrinfo* server){
 	Socket sock    = SOCKET_INVALID;
@@ -138,7 +184,7 @@ Socket getRemoteConnection(struct addrinfo* server){
 		conres = -1;
 		server  = server->ai_next;
 	}
-	tprintf("Sock: %d, Connect: %d\n", sock, conres);
+	tprintf("Sock: %"PRI_SOCKT", Connect: %d\n", sock, conres);
 	if(socketInvalid(sock)) {
 		ExitErrno(67, "socket(2)");
 	} else if(conres != 0 && LAST_ERROR != EINPROGRESS && LAST_ERROR != EWOULDBLOCK) {
@@ -148,7 +194,7 @@ Socket getRemoteConnection(struct addrinfo* server){
 	return sock;
 }
 
-struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server, struct sockaddr *addr, socklen_t addrlen){
+struct fdlist* AddFdPair(struct fdlistenHead *head, int client, int server, struct sockaddr *addr, socklen_t addrlen){
 	struct fdlist* ent = calloc(1, sizeof(struct fdlist));
 
 	tprintf("Adding pair: Client=%d and Server=%d\n", client, server);
@@ -175,8 +221,8 @@ struct fdlist* AddFdPair(struct fdlistHead *head, int client, int server, struct
 
 	return ent;
 }
-struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
-	tprintf("Removing pair (Client=%d, Server=%d) at %p.\n", element->client.fd, element->server.fd, element);
+struct fdlist* RemFdPair(struct fdlistenHead* list, struct fdlist *element){
+	tprintf("Removing pair (Client=%"PRI_SOCKT", Server=%"PRI_SOCKT") at %p.\n", element->client.fd, element->server.fd, element);
 	struct fdlist *last;
 	INCTAB(){
 		CLOSE_SOCKET(element->client.fd);
@@ -210,24 +256,25 @@ struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element){
 	}
 	return last;
 }
-int calcNfds(struct fdlistHead *list, struct fd_setcollection col) {
-	struct fdlist* ls = list->next;
-	int            max;
-	for(max = list->fd; ls != NULL; ls = ls->next){
+int calcNfds(struct fdlistenHead *list, struct fd_setcollection col) {
+	int            max = 0; //Highest file descriptor
+	for(int i = 0; i < list->count; i++)
+		max = MAX(max, list->fds[i]);
+	for(struct fdlist* ls = list->next; ls != NULL; ls = ls->next) {
 		bool cl = FD_ISSET(ls->client.fd, &col.read) || FD_ISSET(ls->client.fd, &col.write);
-		bool sv = FD_ISSET(ls->server.fd, &col.read) || FD_ISSET(ls->server.fd, &col.write);;
+		bool sv = FD_ISSET(ls->server.fd, &col.read) || FD_ISSET(ls->server.fd, &col.write);
 		max = MAX(max, MAX(cl ? ls->client.fd : 0, sv ? ls->server.fd : 0));
 	}
 	return max+1;
 }
-struct fd_setcollection buildSets(struct fdlistHead* list) {
+struct fd_setcollection buildSets(struct fdlistenHead* list) {
 	#define skipLogPair(el) do { \
 		if(!isValidFd(el->client.fd)){ \
-			tprintf("Client FD %d from element %p is not valid!\n", el->client.fd, el); \
+			tprintf("Client FD %"PRI_SOCKT" from element %p is not valid!\n", el->client.fd, el); \
 			continue; \
 		} \
 		if(!isValidFd(el->server.fd)){ \
-			tprintf("Server FD %d from element %p is not valid!\n", el->server.fd, el); \
+			tprintf("Server FD %"PRI_SOCKT" from element %p is not valid!\n", el->server.fd, el); \
 			continue; \
 		} \
 	} while(false)
@@ -238,7 +285,8 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 
 	//* FD_SET(fd, set) FD_ISSET(fd, set) FD_ZERO(set) FD_CLR(fd, set)
 	//* Add main socket to listen for new connections
-	FD_SET(list->fd, &sets.read);
+	for(int i = 0; i < list->count; i++)
+		FD_SET(list->fds[i], &sets.read);
 
 	//* Cycle through, if buffer has no data, add to sets.read
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
@@ -276,14 +324,14 @@ struct fd_setcollection buildSets(struct fdlistHead* list) {
 		if(FD_ISSET(elem->client.fd, &sets.write)){
 			if(client_err != 0){
 				char* errStr = getErrorMessage(client_err);
-				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->client.fd, client_err, errStr);
+				tprintf("Warning: socket %"PRI_SOCKT" set to write even though it has error %d (%s)\n", elem->client.fd, client_err, errStr);
 				free(errStr);
 			}
 		}
 		if(FD_ISSET(elem->server.fd, &sets.write)){
 			if(server_err != 0){
 				char* errStr = getErrorMessage(server_err);
-				tprintf("Warning: socket %d set to write even though it has error %d (%s)\n", elem->server.fd, server_err, errStr);
+				tprintf("Warning: socket %"PRI_SOCKT" set to write even though it has error %d (%s)\n", elem->server.fd, server_err, errStr);
 				free(errStr);
 			}
 		}
@@ -321,7 +369,7 @@ void readfromBuf(struct buffer1k *buffer, ssize_t amount){
 }
 
 
-struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* set, int8_t rotateAmount){
+struct fdlist* processRead(struct fdlistenHead* head, struct fdlist* list, struct fd_setcollection* set, int8_t rotateAmount){
 	struct fdelem *connection = &list->client;
 	while(list != NULL && connection != NULL){
 		tprintf("Handing %s...\n", connection->descriptString);
@@ -346,7 +394,7 @@ struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct 
 				ExitErrno(90, false);
 				connection->buf.length = 0;
 			} else {
-				tprintf("Got data from %s. (%d bytes)\n", connection->descriptString, connection->buf.length);
+				tprintf("Got data from %s. (%"PRI_SSIZET" bytes)\n", connection->descriptString, connection->buf.length);
 				rotate(rotateAmount, connection->buf.buf, connection->buf.length);
 				FD_CLR(connection->fd, &set->read);
 			}
@@ -370,14 +418,14 @@ void processWrite(struct fdlist* list, fd_set* writeset){
 
 		if(FD_ISSET(opp->fd, writeset)) {
 			//ssize_t write(int fd, const void *buf, size_t count);
-			tprintf("Write to %d (%s) (Opp buffer contains Len:%zd Ind:%zu)\n", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
+			tnprintf("Write to %"PRI_SOCKT" (%s) (Opp buffer contains Len:%" PRI_SSIZET " Ind:%" PRI_SIZET ")", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
 			ssize_t written = send(opp->fd, (char*) (conn->buf.buf + conn->buf.startIndex), conn->buf.length - conn->buf.startIndex, 0);
 			if(written == -1 && LAST_ERROR == EINPROGRESS) {
 				tprintf("Had an error that no-one cares about. (EINPROGRESS)");
 			} else if(written == -1) {
 				ExitErrno(101, false);
 			} else {
-				tprintf("Written to %s: %d bytes\n", opp->descriptString, written);
+				tprintf("Written to %s: %"PRI_SIZET" bytes\n", opp->descriptString, written);
 				readfromBuf(&conn->buf, written);
 				FD_CLR(opp->fd, writeset);
 			}
@@ -385,16 +433,19 @@ void processWrite(struct fdlist* list, fd_set* writeset){
 		conn = conn == &list->client ? &list->server : NULL;
 	}
 }
-int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata){
+int calcHandled(struct fdlistenHead *head, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata){
 	bool log = *metadata != NULL;
+	int  removed = 0;
+	for(int i = 0; i < head->count; i++){
+		removed += FD_ISSET(head->fds[i], &fromSelect.read) && !FD_ISSET(head->fds[i], &actedOn.read) ? 1 : 0;
+	}
 
-	int removed = FD_ISSET(head->fd, &fromSelect.read) && !FD_ISSET(head->fd, &actedOn.read) ? 1 : 0;
 	//if fromSelect && !fromActedOn
 	for(struct fdlist* list = head->next; list != NULL; list = list->next) {
 		struct fdelem *conn = &list->client;
 		while((conn = conn == &list->client ? &list->server : NULL) != NULL) { //First section is ran, then result of conditional is used for loop
 			if(FD_ISSET(conn->fd, &fromSelect.except))
-				tprintf("File Descriptor %d (%s) was in the `except` list.\n", conn->fd, conn->descriptString);
+				tprintf("File Descriptor %"PRI_SOCKT" (%s) was in the `except` list.\n", conn->fd, conn->descriptString);
 			
 			removed += FD_ISSET(conn->fd, &fromSelect.read) && !FD_ISSET(conn->fd, &actedOn.read) ? 1 : 0;
 			removed += FD_ISSET(conn->fd, &fromSelect.write) && !FD_ISSET(conn->fd, &actedOn.write) ? 1 : 0;
@@ -415,7 +466,7 @@ int calcHandled(struct fdlistHead *head, struct fd_setcollection actedOn, struct
 				
 				#define lol(fd, origSet, newSet, cat) \
 					if(FD_ISSET(fd, &(origSet.cat)) && !FD_ISSET(fd, &(newSet.cat))) { \
-					sprintf(buf, "File Descriptor %d cleared from %s set.", fd, #cat); \
+					sprintf(buf, "File Descriptor %"PRI_SOCKT" cleared from %s set.", fd, #cat); \
 					(*metadata)[r++] = strdup(buf); }
 
 					// *((*metadata) + 1)

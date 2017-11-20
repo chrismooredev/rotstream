@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-
 #include <stdarg.h>
+#include <inttypes.h>
 
 //MinGW should provide in a windows build, should be in linux
 
@@ -49,6 +49,15 @@ int tablevel;
 
 #define dbg if(DEBUG)
 
+#define printErrIfErr(x, lstErrMacro)                \
+	do {                                             \
+		if(x == -1) { \
+		char* errStr = getErrorMessage(lstErrMacro); \
+		_printf("%s", errStr); \
+		free(errStr); \
+		} \
+	} while(0)
+
 /*
 struct addrinfo {
 	int ai_flags;
@@ -71,6 +80,25 @@ struct addrinfo {
 			_printf("%s\n",ENUM_VALS[i].name); \
 		}                                                                   \
 	}
+
+#ifdef _WIN32
+#  ifdef _WIN64
+#    define PRI_SIZET PRIu64
+#    define PRI_SSIZET PRId64
+#    define PRI_SOCKT PRIu64
+#    define PRI_SOCKLENT PRIu64
+#  else
+#    define PRI_SIZET PRIu32
+#    define PRI_SSIZET PRId32
+#    define PRI_SOCKT PRIu32
+#    define PRI_SOCKLENT PRIu32
+#  endif
+#else
+#  define PRI_SIZET "zu"
+#  define PRI_SSIZET "zd"
+#  define PRI_SOCKT "d"
+#  define PRI_SOCKLENT "u"
+#endif
 
 typedef struct enumpair {
 	int value;
@@ -118,10 +146,10 @@ enum RETURN_CODES {
 	ERROR_OTHER = 100
 };
 
-int tvfprintf(FILE *stream, const char *fmt, va_list args); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
-int tfprintf(FILE *stream, const char *fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
-int tnprintf(const char* fmt, ...); // Identical to tprintf, but adds a newline to the end
-int tprintf(const char* fmt, ...); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+int tvfprintf(FILE *stream, const char *fmt, va_list args) __attribute__ ((format (printf, 2, 0))); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+int tfprintf(FILE *stream, const char *fmt, ...) __attribute__ ((format (printf, 2, 3))); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
+int tnprintf(const char* fmt, ...) __attribute__ ((format (printf, 1, 2))); // Identical to tprintf, but adds a newline to the end
+int tprintf(const char* fmt, ...) __attribute__((format (printf, 1, 2))); // Functions similar to printf however prefixes output with an amount of tabs specified by `tablevel`
 //Use what is functionally equilavent to printf without triggering compiler warnings.
 #define _printf(format, ...) fprintf(stdout, format, ##__VA_ARGS__)
 

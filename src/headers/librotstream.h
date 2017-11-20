@@ -127,7 +127,6 @@ do { \
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define getOpposite(list, elem) (&list->client == elem ? &list->server : &list->client)
 
-
 #define addToSetIf(cond, fd, set) \
 	do {                          \
 		if((cond))                \
@@ -145,7 +144,7 @@ struct fd_setcollection {
 	fd_set except;
 };
 struct fdelem {
-	int fd;
+	Socket fd;
 	char*            descriptString;
 	struct buffer1k  buf;
 	struct sockaddr* sockaddr;
@@ -165,8 +164,13 @@ struct fdlist {
 	struct fdelem  server;
 	struct fdlist* next;
 };
+struct fdlistenHead {
+	size_t count;
+	Socket* fds;
+	struct fdlist* next;
+};
 struct fdlistHead {
-	int fd;
+	Socket fd;
 	struct fdlist* next;
 };
 
@@ -178,21 +182,21 @@ size_t removeIndex(size_t index, size_t len, char** arr);
 void printListHeader(char* header, size_t len, char** list);
 void populateHints(struct addrinfo* hints, int* argc, char* argv[]);
 
-Socket getServerSocket(struct addrinfo* server);
+Socket getServerSocket(struct addrinfo* server, int count, Socket* sockarr);
 Socket getRemoteConnection(struct addrinfo* server);
 
-int calcNfds(struct fdlistHead* list, struct fd_setcollection col);
-struct fd_setcollection buildSets(struct fdlistHead* list);
+int calcNfds(struct fdlistenHead* list, struct fd_setcollection col);
+struct fd_setcollection buildSets(struct fdlistenHead* list);
 
-struct fdlist* AddFdPair(struct fdlistHead* list, int client, int server, struct sockaddr *addr, socklen_t addrlen);
-struct fdlist* RemFdPair(struct fdlistHead* list, struct fdlist *element);
+struct fdlist* AddFdPair(struct fdlistenHead* list, int client, int server, struct sockaddr *addr, socklen_t addrlen);
+struct fdlist* RemFdPair(struct fdlistenHead* list, struct fdlist *element);
 
 void normalizeBuf(struct buffer1k* buffer);
 void readfromBuf(struct buffer1k* buffer, ssize_t amount);
 
-struct fdlist* processRead(struct fdlistHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
+struct fdlist* processRead(struct fdlistenHead* head, struct fdlist* list, struct fd_setcollection* collection, int8_t rotateAmount);
 void processWrite(struct fdlist* list, fd_set* write);
-int calcHandled(struct fdlistHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
+int calcHandled(struct fdlistenHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 bool setSocketNonblocking(Socket sock);
 
 /*

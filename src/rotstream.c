@@ -51,7 +51,16 @@ int main(int argc, char* argv[]) {
 #endif
 
 	//TODO: Setup listening socket
-	int listenSocket = getServerSocket(listen);
+	int listenSocketCount = 0;
+	struct addrinfo* _tmp              = listen;
+	while(_tmp != NULL){
+		listenSocketCount++;
+		_tmp = _tmp->ai_next;
+	}
+	tnprintf("Listen socket count: %d", listenSocketCount);
+	Socket listenSockets[listenSocketCount];
+	//int listenSocket = 
+	getServerSocket(listen, listenSocketCount, listenSockets);
 
 	//* Setup connection socket to Server
 	//int masterServer = getServerSocket(beginning);
@@ -59,7 +68,11 @@ int main(int argc, char* argv[]) {
 	//TODO: Start listening shit
 	//* Setup `select()` data
 	struct timeval   timeout = timeout_ref;
-	struct fdlistHead fd_list = {.fd = listenSocket, .next = NULL};
+	struct fdlistenHead fd_list = {
+		.count = listenSocketCount,
+		.fds = listenSockets,
+		.next = NULL};
+	//struct fdlistHead fd_list = {.fd = listenSocket, .next = NULL};
 
 	//! FD_SET(int fd, fd_set *set);
 	//! FD_CLR(int fd, fd_set *set);
@@ -84,10 +97,11 @@ int main(int argc, char* argv[]) {
 		struct timeval *timeout);
 	*/
 
-
 	struct fd_setcollection set = buildSets(&fd_list);
 	struct fd_setcollection for_calc;
 	for(int ready = 0; !shouldTerminate; timeout = timeout_ref, set = buildSets(&fd_list), ready = select(calcNfds(&fd_list, set), &set.read, &set.write, &set.except, &timeout)) {
+		if(shouldTerminate)
+			break;
 		if(ready != 0)
 			_printf("\n");
 		if(ready == 0) {
@@ -105,22 +119,23 @@ int main(int argc, char* argv[]) {
 			INCTAB() {
 				for_calc = set;
 				//TODO: bool accepted = acceptConnection(struct fdlistHead * list, fd_list read);
-				if(FD_ISSET(fd_list.fd, &set.read)) {
-					tprintf("Accepting... - ");
-					socklen_t        addrlen = 1024;
-					struct sockaddr *addr = malloc(addrlen); //* free(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
-					int clfd = accept(fd_list.fd, addr, &addrlen);
-					if(clfd == -1) {
-						ExitErrno(27, false);
+				for(int i = 0; i < fd_list.count; i++)
+					if(FD_ISSET(fd_list.fds[i], &set.read)) {
+						tprintf("Accepting... - ");
+						socklen_t        addrlen = 1024;
+						struct sockaddr* addr    = malloc(addrlen); //* free(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
+						int              clfd    = accept(fd_list.fds[i], addr, &addrlen);
+						if(clfd == -1) {
+							ExitErrno(27, false);
+						}
+
+						printSockaddr(addrlen, addr);
+
+						int svfd = getRemoteConnection(server);
+
+						AddFdPair(&fd_list, clfd, svfd, addr, addrlen);
+						FD_CLR(fd_list.fds[i], &set.read);
 					}
-
-					printSockaddr(addrlen, addr);
-
-					int svfd = getRemoteConnection(server);
-
-					AddFdPair(&fd_list, clfd, svfd, addr, addrlen);
-					FD_CLR(fd_list.fd, &set.read);
-				}
 				for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
 					tprintf("Processing %p for read\n", list);
 					INCTAB() { list = processRead(&fd_list, list, &set, rotateAmount); }
