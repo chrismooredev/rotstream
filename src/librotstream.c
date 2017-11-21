@@ -333,9 +333,13 @@ struct fdlist* processRead(struct fdlistenHead* head, struct fdlist* list, struc
 
 			connection->buf.length = recv(connection->fd, (char*) connection->buf.buf, sizeof(connection->buf.buf), 0);
 			
-			if(connection->buf.length == 0){ //* EOF
+			if(connection->buf.length == 0 || (connection->buf.length == -1 && (LAST_ERROR == ECONNRESET))){ //* EOF
 				INCTAB() {
-					IFLOG(LOG_PROC_READ) tprintf("Recieved zero bytes: EOF\n");
+					IFLOG(LOG_PROC_READ)
+						if(connection->buf.length == 0)
+							tnprintf("Recieved zero bytes: EOF");
+						else if(LAST_ERROR == ECONNRESET)
+							tnprintf("Recieved ECONNRESET Error. Removing connection pair.");
 					FD_CLR(connection->fd, &set->read);
 					FD_CLR(connection->fd, &set->write);
 					FD_CLR(getOpposite(list, connection)->fd, &set->read);
@@ -346,8 +350,8 @@ struct fdlist* processRead(struct fdlistenHead* head, struct fdlist* list, struc
 				}
 				//break;
 			} else if(connection->buf.length == -1) { //* ERROR
-				ExitErrno(90, false);
 				connection->buf.length = 0;
+				ExitErrno(90, false);
 			} else {
 				IFLOG(LOG_PROC_READ) tprintf("Got data from %s. (%"PRI_SSIZET" bytes)\n", connection->descriptString, connection->buf.length);
 				rotate(rotateAmount, connection->buf.buf, connection->buf.length);
