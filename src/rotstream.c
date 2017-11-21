@@ -22,6 +22,7 @@ int main(int argc, char* argv[]) {
 	struct arguments args;
 	handleArguments(&argc, argv, &args);
 
+	loglevel     = args.logflags;
 	rotateAmount = args.rot; // Normalize the cipher, Negatives are preserved
 	if(rotateAmount == 0){
 		tnprintf("Warning: The RotateAmount is 0! This will act as an ordinary TCP Stream wrapper, without masking contents.");
@@ -93,7 +94,8 @@ int main(int argc, char* argv[]) {
 		if(shouldTerminate)
 			break;
 		if(ready != 0)
-			_printf("\n");
+			//_printf("\n");
+			;
 		if(ready == 0) {
 			//tprintf("Waiting for connection...\n");
 			_printf(".");
@@ -105,7 +107,7 @@ int main(int argc, char* argv[]) {
 				tprintf("Must remove bad FD from socket\n");
 			}
 		} else {
-			tnprintf("Handling %d connection%s...", ready, ready != 1 ? "s" : "");
+			IFLOG(LOG_CONNHAND) tnprintf("Handling %d connection%s...", ready, ready != 1 ? "s" : "");
 			INCTAB() {
 				for_calc = set;
 				//TODO: bool accepted = acceptConnection(struct fdlistHead * list, fd_list read);
@@ -127,21 +129,23 @@ int main(int argc, char* argv[]) {
 						FD_CLR(fd_list.fds[i], &set.read);
 					}
 				for(struct fdlist* list = fd_list.next; list != NULL; list = list == NULL ? NULL : list->next) {
-					tprintf("Processing %p for read\n", list);
+					IFLOG(LOG_PROC_READ) tprintf("Processing %p for read\n", list);
 					INCTAB() { list = processRead(&fd_list, list, &set, rotateAmount); }
-					tprintf("Done reading. list = %p, list->next = %p\n", list, list == NULL ? NULL : list->next);
+					IFLOG(LOG_PROC_READ) tprintf("Done reading. list = %p, list->next = %p\n", list, list == NULL ? NULL : list->next);
 				}
 				for(struct fdlist *list = fd_list.next; list != NULL; list = list->next){
-					tprintf("Processing %p for write\n", list);
+					IFLOG(LOG_PROC_WRITE) tprintf("Processing %p for write\n", list);
 					INCTAB(){ processWrite(list, &(set.write)); }
 				}
 
-				char** metadata;
-				int handledCount = calcHandled(&fd_list, set, for_calc, &metadata);
-				tprintf("Handled %d/%d sockets.\n", handledCount, ready);
-				INCTAB(){
-					for(int i = 0; i < handledCount; i++){
-						tprintf("%s\n", metadata[i]);
+				IFLOG(LOG_CALCHAND) {
+					char** metadata;
+					int handledCount = calcHandled(&fd_list, set, for_calc, &metadata);
+					tprintf("Handled %d/%d sockets.\n", handledCount, ready);
+					INCTAB(){
+						for(int i = 0; i < handledCount; i++){
+							tprintf("%s\n", metadata[i]);
+						}
 					}
 				}
 			}

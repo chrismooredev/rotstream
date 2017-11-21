@@ -5,6 +5,8 @@
 #include "liblogging.h"
 #include "../libs/argtable3.h"
 
+#define WELL_KNOWN_PORTS_CAP 1024
+
 #define assif(x) assert(x); if(x)
 
 //#pragma GCC diagnostic push
@@ -33,6 +35,8 @@ struct IPvMatrix {
 };
 struct argumentsRaw {
 	bool silent;
+	size_t           loglvlsCount;
+	const char**      loglvls;
 	struct IPvMatrix ip;
 	bool        rotSet;
 	int         rot;
@@ -42,8 +46,9 @@ struct argumentsRaw {
 	const char* srcPort;
 };
 struct arguments {
-	bool silent; //Output debug or not
-	int8_t  rot; //Amount to rotate
+	//bool silent; //Output debug or not
+	enum LOGGING_FLAGS logflags;
+	int8_t             rot; //Amount to rotate
 	struct addrinfo* dst; //IP to forward to. Must hold only one
 	struct addrinfo* src; //IP to listen in. May hold more than one.
 };
@@ -55,5 +60,6 @@ void printCopyright(const char* binaryName);
 void   printArgsRaw(struct argumentsRaw* raw);
 int    getAddressTargets(const char* name, const char* service, enum IPvEnum ipv, struct addrinfo** result, int ai_flags);
 void   processArgs(struct argumentsRaw* raw, struct arguments* args);
+int8_t normalizeRot(bool rotSet, int rawArg, struct addrinfo* dstAddrinfo);
 
 #endif

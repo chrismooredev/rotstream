@@ -35,6 +35,7 @@
 #include "../libs/mp.h"
 
 int tablevel;
+enum LOGGING_FLAGS loglevel;
 
 #define MAKE_TUPLE(x) {.value = x, .name = #x}
 #define MAKE_TRIPLE(x, y) {.value = x, .name = #x, .description = y}
@@ -46,6 +47,15 @@ int tablevel;
 #define INCTAB()                      \
 	MPP_BEFORE(inctab_a, tablevel++;) \
 	MPP_AFTER(inctab_b, tablevel--;)
+
+#define IFLOG(lvl)        \
+	if(!((lvl & loglevel) != 0)) \
+		; \
+	else
+#define IFLOGF(lvl, force) \
+	if(!((lvl & loglevel) != 0 || (force))) \
+		; \
+	else
 
 #define dbg if(DEBUG)
 
@@ -131,6 +141,25 @@ typedef struct enumtriple {
 //}
 //#endregion
 
+enum LOGGING_FLAGS {
+	LOG_SILENT   = 0b00000000,
+	LOG_RAWARGS  = 0b00000001,
+	LOG_PROCARGS = 0b00000010,
+
+	LOG_GAI_DST  = 0b00000100,
+	LOG_GAI_SRC  = 0b00001000,
+	LOG_DNS      = LOG_GAI_DST | LOG_GAI_SRC,
+	LOG_SOCKCRTE = 0b00010000,
+
+	LOG_ARGS       = 0b00100000 | LOG_DNS,
+	LOG_CALCHAND   = 0b01000000,
+	LOG_PROC_READ  = 0b10000000,
+	LOG_PROC_WRITE = 0b00000001 << 8,
+	LOG_CONNHAND   = 0b00000010 << 8,
+
+	LOG_DEFAULT = LOG_SOCKCRTE | LOG_PROC_READ | LOG_PROC_WRITE | LOG_CONNHAND | LOG_CALCHAND
+};
+EnumTuple LOGGING_FLAGS_VALUES[8];
 
 EnumTriple EAI_ERROR_VALUES[8 WITHLIN(+2) WITHGNU(+8)];
 EnumTriple AI_FLAGS_VALUES[3 WITHLIN(+4) WITHGNU(+4)];
