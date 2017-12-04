@@ -52,7 +52,7 @@ void populateHints(struct addrinfo* hints, int* argc, char* argv[]) {
 	}
 
 	memset(hints, 0, sizeof(struct addrinfo));
-	//*hints = (struct addrinfo) {0};
+	// *hints = (struct addrinfo) {0};
 	hints->ai_family = AF_UNSPEC;
 
 	if(foundFour)
@@ -121,7 +121,6 @@ Socket getRemoteConnection(struct addrinfo* server){
 			setSocketNonblocking(sock);
 			conres = connect(sock, server->ai_addr, server->ai_addrlen);
 
-			
 			if(socketValid(sock) && (conres == 0 || LAST_ERROR == EINPROGRESS || LAST_ERROR == EWOULDBLOCK)){
 				IFLOG(LOG_SOCKCRTE) INCTAB() { tnprintf("connect() successful!"); }
 				break;
@@ -154,6 +153,9 @@ struct fdlist* AddFdPair(struct fdlistenHead *head, int client, int server, stru
 
 	tprintf("Adding pair: Client=%d and Server=%d\n", client, server);
 
+	setSocketNoTcpDelay(client);
+	setSocketNoTcpDelay(server);
+
 	ent->client.fd = client;
 	ent->server.fd = server;
 
@@ -182,7 +184,7 @@ struct fdlist* RemFdPair(struct fdlistenHead* list, struct fdlist *element){
 	INCTAB(){
 		CLOSE_SOCKET(element->client.fd);
 		CLOSE_SOCKET(element->server.fd);
-		free(element->client.sockaddr); //* malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
+		free(element->client.sockaddr); // * malloc(addr)'d at `void RemFdPair(struct fdlistHead*, struct fdlist*)`
 		//free(element->server.sockaddr); //Closed when freeaddrinfo is called
 
 		tprintf("Next element is at %p.\n", element->next);
@@ -238,19 +240,19 @@ struct fd_setcollection buildSets(struct fdlistenHead* list) {
 	FD_ZERO(&sets.write);
 	FD_ZERO(&sets.except);
 
-	//* FD_SET(fd, set) FD_ISSET(fd, set) FD_ZERO(set) FD_CLR(fd, set)
-	//* Add main socket to listen for new connections
+	// * FD_SET(fd, set) FD_ISSET(fd, set) FD_ZERO(set) FD_CLR(fd, set)
+	// * Add main socket to listen for new connections
 	for(int i = 0; i < list->count; i++)
 		FD_SET(list->fds[i], &sets.read);
 
-	//* Cycle through, if buffer has no data, add to sets.read
+	// * Cycle through, if buffer has no data, add to sets.read
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
 		skipLogPair(elem);
 		addToSetIf(elem->client.buf.length == 0, elem->client.fd, &sets.read);
 		addToSetIf(elem->server.buf.length == 0, elem->server.fd, &sets.read);
 	}
 
-	//* Cycle through, if buffer has data, add to sets.write
+	// * Cycle through, if buffer has data, add to sets.write
 	for(struct fdlist *elem = list->next; elem != NULL; elem = elem->next){
 		normalizeBuf(&(elem->client.buf));
 		normalizeBuf(&(elem->server.buf));
@@ -265,7 +267,7 @@ struct fd_setcollection buildSets(struct fdlistenHead* list) {
 		int	server_res      = getsockopt(elem->server.fd, SOL_SOCKET, SO_ERROR, (char*) &server_err, &intsize);
 		int	server_errno    = LAST_ERROR;
 
-		//* The sockets are waiting for data on the other stream, so check the other one
+		// * The sockets are waiting for data on the other stream, so check the other one
 		addToSetIf(elem->server.buf.length != 0, elem->client.fd, &sets.write);
 		addToSetIf(elem->client.buf.length != 0, elem->server.fd, &sets.write);
 
@@ -455,6 +457,12 @@ bool setSocketNonblocking(Socket sock){
 #else
 #error Unsupported Compiler Target
 #endif
+}
+bool setSocketNoTcpDelay(Socket sock) {
+	int flag = 1;
+	//int setsockopt(sock, level, optname, optval, optlen)
+	int res = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*) &flag, sizeof(flag));
+	return res == 0;
 }
 
 /*

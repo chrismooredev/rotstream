@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
@@ -201,6 +202,7 @@ struct fdlist* processRead(struct fdlistenHead* head, struct fdlist* list, struc
 void processWrite(struct fdlist* list, fd_set* write);
 int calcHandled(struct fdlistenHead* list, struct fd_setcollection actedOn, struct fd_setcollection fromSelect, char*** metadata);
 bool setSocketNonblocking(Socket sock);
+bool setSocketNoTcpDelay(Socket sock);
 
 /*
 	Ctrl-C - Terminates application by setting (_terminate = true)
