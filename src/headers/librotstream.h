@@ -1,6 +1,10 @@
 #ifndef _INCL_LIBROT
 #define _INCL_LIBROT
 
+#include "libversion.h"
+#include "liblogging.h"
+#include "../libs/argtable3.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <errno.h>
@@ -12,7 +16,7 @@
 #include <string.h>
 #include <fcntl.h>
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -22,7 +26,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <signal.h>
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 //#include <winsock.h>
 #include <winsock2.h>
 #include <windows.h>
@@ -30,29 +34,26 @@
 #include <wincon.h>
 #endif
 
-#include "liblogging.h"
-#include "../libs/argtable3.h"
-
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define CLOSE_SOCKET(FD) close(FD);
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define CLOSE_SOCKET(FD) \
 	closesocket(FD);
 #else
 #error Unsupported Compiler Target
 #endif
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define Socket int
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define Socket SOCKET
 #else
 #error Unsupported Compiler Target
 #endif
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define SOCKET_INVALID -1
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define SOCKET_INVALID INVALID_SOCKET
 #else
 #error Unsupported Compiler Target
@@ -61,43 +62,45 @@
 #define socketInvalid(x) ((x) == SOCKET_INVALID)
 #define socketValid(x) ((x) != SOCKET_INVALID)
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define LAST_ERROR errno
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define LAST_ERROR WSAGetLastError()
 #else
 #error Unsupported Compiler Target
 #endif
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define LAST_SYS_ERROR errno
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define LAST_SYS_ERROR GetLastError()
 #else
 #error Unsupported Compiler Target
 #endif
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define SET_LAST_ERROR(x) do { errno = (x); } while(0)
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define SET_LAST_ERROR(x) WSASetLastError(x)
 #else
 #error Unsupported Compiler Target
 #endif
 
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define isValidFd(fd) (!(fcntl(fd, F_GETFD) == -1 && errno == EBADF))
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 #define isValidFd(fd) (!(getsockopt(fd, SOL_SOCKET, SO_TYPE, NULL, NULL) && WSAGetLastError() == WSAENOTSOCK))
 #else
 #error Unsupported Compiler Target
 #endif
 
-#ifdef __WINNT
+#ifdef BUILD_WIN32
 #undef EWOULDBLOCK
 #undef EINPROGRESS
+#undef ECONNRESET
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #define EINPROGRESS WSAEINPROGRESS
+#define ECONNRESET WSAECONNRESET
 #endif
 
 #define Exit(n, usererror)                                                                                      \
@@ -202,14 +205,14 @@ bool setSocketNonblocking(Socket sock);
 /*
 	Ctrl-C - Terminates application by setting (_terminate = true)
 */
-#ifdef __linux
+#ifdef BUILD_LINUX
 void handler_SIGINT(int s);
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 BOOL handler_SIGINT(DWORD dwCtrlType);
 #endif
 
 #ifdef DEBUG
-#ifdef __linux
+#ifdef BUILD_LINUX
 #include <execinfo.h>
 #define enableStacktrace() //do { signal(SIGSEGV, errHandler); } while(0)
 void errHandler(int signalno);

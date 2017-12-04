@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
 #ifdef DEBUG
 	setbuf(stdout, NULL);
 #endif
-#ifdef __WINNT
+#ifdef BUILD_WIN32
 	WSADATA wsaData;
 	WSAStartup(0x0202, &wsaData); //Version 2.2 of Winsock.dll? // https://msdn.microsoft.com/en-us/library/windows/desktop/ms742213(v=vs.85).aspx
 #endif
@@ -31,9 +31,9 @@ int main(int argc, char* argv[]) {
 	struct addrinfo *server = args.dst;
 	struct addrinfo *listen = args.src;
 	
-#ifdef __WINNT
+#ifdef BUILD_WIN32
 	SetConsoleCtrlHandler(handler_SIGINT, true);
-#elif __linux
+#elif defined(BUILD_LINUX)
 	struct sigaction sigintHandler;
 	sigintHandler.sa_handler = handler_SIGINT;
 	sigemptyset(&sigintHandler.sa_mask);
@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
 		tnprintf("Recieved termination signal... Exiting.");
 	}
 
-	#ifdef __WINNT
+	#ifdef BUILD_WIN32
 	WSACleanup();
 	#endif
 

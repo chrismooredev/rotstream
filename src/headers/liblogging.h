@@ -1,6 +1,9 @@
 #ifndef _INCL_LIBLOG
 #define _INCL_LIBLOG
 
+#include "libversion.h"
+#include "../libs/mp.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -13,13 +16,14 @@
 
 //MinGW should provide in a windows build, should be in linux
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#elif __WINNT
+//#endif
+#elif defined(BUILD_WIN32)
 /*#ifdef _WINSOCKAPI_
 #warning somehow _WINSOCKAPI_ is defined
 #endif
@@ -31,8 +35,6 @@
 #include <wincon.h>
 #include <winerror.h>
 #endif
-
-#include "../libs/mp.h"
 
 int tablevel;
 enum LOGGING_FLAGS loglevel;
@@ -127,13 +129,13 @@ typedef struct enumtriple {
 #define WITHGNU(x)
 #endif
 
-#ifdef __WINNT
+#ifdef BUILD_WIN32
 #define WITHWIN(x) x
 #else
 #define WITHWIN(x)
 #endif
 
-#ifdef __linux
+#ifdef BUILD_LINUX
 #define WITHLIN(x) x
 #else
 #define WITHLIN(x)

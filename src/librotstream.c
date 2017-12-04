@@ -439,13 +439,13 @@ int calcHandled(struct fdlistenHead *head, struct fd_setcollection actedOn, stru
 	return removed;
 }
 bool setSocketNonblocking(Socket sock){
-#ifdef __linux
+#ifdef BUILD_LINUX
 	int flags = fcntl(sock, F_GETFL, 0);
 	assert(flags != -1);
 	flags |= O_NONBLOCK;
 	int rtn = fcntl(sock, F_SETFL, flags);
 	return rtn == 0;
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 	u_long argp = true;
 	int rtn = ioctlsocket(sock, FIONBIO, &argp);
 	return rtn == 0;
@@ -457,11 +457,11 @@ bool setSocketNonblocking(Socket sock){
 /*
 	Ctrl-C - Terminates application by setting (_terminate = true)
 */
-#ifdef __linux
+#ifdef BUILD_LINUX
 void handler_SIGINT(int s) {
 	shouldTerminate = true;
 }
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 BOOL handler_SIGINT(DWORD dwCtrlType) {
 	switch(dwCtrlType){
 		case CTRL_C_EVENT:

@@ -2,11 +2,15 @@ LINC=gcc
 #LINC=/usr/bin/clang
 WINC=x86_64-w64-mingw32-gcc
 #WINC=/usr/bin/clang -target x86_64-pc-win32
+#WINC=/usr/bin/clang -target x86_64-w64-windows-gnu
+#WINC=/usr/bin/clang -target x86_64-w64-windows
+#WINC=/usr/bin/clang -target x86_64-pc-windows-gnu
 
 CFLAGS_BASE=-c -std=gnu99 -g -Wall -Wno-unknown-pragmas -Wno-comment -Wno-format-zero-length -DDEBUG=1
 
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MAJOR=0
 CFLAGS_BASE := $(CFLAGS_BASE) -DVERSION_MINOR=2
+CFLAGS_BASE := $(CFLAGS_BASE) -Dlint #Suppress string constant in libargs3
 BUILD_DIR=out
 
 #Force action even if target is 'up-to-date'

@@ -30,7 +30,7 @@ EnumTriple EAI_ERROR_VALUES[] = {
 	MAKE_TRIPLE(EAI_SOCKTYPE, "`ai_socktype' not supported."),
 	MAKE_TRIPLE(EAI_SERVICE, "SERVICE not supported for `ai_socktype'"),
 	MAKE_TRIPLE(EAI_MEMORY, "Memory allocation failure."),
-#ifdef __linux
+#ifdef BUILD_LINUX
 	MAKE_TRIPLE(EAI_SYSTEM, "System error returned in `errno'."),
 	MAKE_TRIPLE(EAI_OVERFLOW, "Argument buffer overflow."),
 #endif
@@ -51,7 +51,7 @@ EnumTriple AI_FLAGS_VALUES[] = {
 	MAKE_TRIPLE(AI_PASSIVE, "Socket address is intended for `bind'."),
 	MAKE_TRIPLE(AI_CANONNAME, "Request for canonical name."),
 	MAKE_TRIPLE(AI_NUMERICHOST, "Don't use name resolution."),
-#ifdef __linux
+#ifdef BUILD_LINUX
 	MAKE_TRIPLE(AI_V4MAPPED, "IPv4 mapped addresses are acceptable."),
 	MAKE_TRIPLE(AI_ALL, "Return IPv4 mapped and IPv6 addresses."),
 	MAKE_TRIPLE(AI_ADDRCONFIG, "Use configuration of this host to choose returned address type."),
@@ -66,7 +66,7 @@ EnumTriple AI_FLAGS_VALUES[] = {
 };
 
 EnumTuple AF_ENUM_VALUES[] = {
-#ifdef __linux
+#ifdef BUILD_LINUX
 	MAKE_TUPLE(AF_ALG),
 	MAKE_TUPLE(AF_ASH),
 	MAKE_TUPLE(AF_ATMPVC),
@@ -102,7 +102,7 @@ EnumTuple AF_ENUM_VALUES[] = {
 	MAKE_TUPLE(AF_VSOCK),
 	MAKE_TUPLE(AF_WANPIPE),
 	MAKE_TUPLE(AF_X25),
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 	MAKE_TUPLE(AF_12844),
 	MAKE_TUPLE(AF_ATM),
 	MAKE_TUPLE(AF_BAN),
@@ -140,7 +140,7 @@ EnumTuple AF_ENUM_VALUES[] = {
 	MAKE_TUPLE(AF_UNSPEC),
 };
 EnumTuple SOCK_ENUM_VALUES[] = {
-#ifdef __linux
+#ifdef BUILD_LINUX
 	MAKE_TUPLE(SOCK_DCCP),
 	MAKE_TUPLE(SOCK_PACKET),
 #endif
@@ -152,7 +152,7 @@ EnumTuple SOCK_ENUM_VALUES[] = {
 };
   
 EnumTuple PROTO_ENUM_VALUES[] = {
-#ifdef __linux
+#ifdef BUILD_LINUX
 	MAKE_TUPLE(IPPROTO_IPIP),
 	MAKE_TUPLE(IPPROTO_EGP),
 	MAKE_TUPLE(IPPROTO_TP),
@@ -245,9 +245,9 @@ const char* _getEnumTriple(int value, size_t enumSize, EnumTriple enumValues[], 
 	return "Unknown Value";
 }
 char* getErrorMessage(int error){
-#ifdef __linux
+#ifdef BUILD_LINUX
 	return strdup(strerror(error));
-#elif __WINNT
+#elif defined(BUILD_WIN32)
 	char *s = NULL;
 	FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 
 				NULL, error,
