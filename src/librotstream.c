@@ -80,7 +80,7 @@ void getServerSocket(struct addrinfo* server, int sockcount, Socket* sockarr){
 		INCTAB(){
 			//Allows quick testing by enabling attaching to a used port
 			int enable = 1; //https://stackoverflow.com/a/24194999/3439288
-			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(int)) < 0)
+			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (char*) &enable, sizeof(enable)) < 0)
 				perror("setsockopt(SO_REUSEADDR) failed");
 
 			if(server->ai_family == AF_INET6){
@@ -256,6 +256,7 @@ struct fd_setcollection buildSets(struct fdlistenHead* list) {
 		normalizeBuf(&(elem->server.buf));
 		skipLogPair(elem);
 
+		//TODO: Eliminate this section of code, it hasn't seemed to have errored in ages
 		socklen_t	intsize = sizeof(int);
 		int	client_err      = 0;
 		int	server_err      = 0;
@@ -271,7 +272,7 @@ struct fd_setcollection buildSets(struct fdlistenHead* list) {
 		if(client_res == -1 || server_res == -1){
 			char *cen = getErrorMessage(client_errno);
 			char *sen = getErrorMessage(server_errno);
-			tprintf("Client_res: %s, Server_res: %s\n", cen, sen);
+			tprintf("###########Client_res: %s, Server_res: %s\n", cen, sen);
 			free(cen);
 			free(sen);
 		}
@@ -378,7 +379,9 @@ void processWrite(struct fdlist* list, fd_set* writeset){
 		if(FD_ISSET(opp->fd, writeset)) {
 			//ssize_t write(int fd, const void *buf, size_t count);
 			IFLOG(LOG_PROC_WRITE) tnprintf("Write to %"PRI_SOCKT" (%s) (Opp buffer contains Len:%" PRI_SSIZET " Ind:%" PRI_SIZET ")", opp->fd, opp->descriptString, conn->buf.length, conn->buf.startIndex);
+			//written = send(sockfd, buf, len, flags)
 			ssize_t written = send(opp->fd, (char*) (conn->buf.buf + conn->buf.startIndex), conn->buf.length - conn->buf.startIndex, 0);
+
 			if(written == -1 && LAST_ERROR == EINPROGRESS) {
 				IFLOG(LOG_PROC_WRITE) tnprintf("Had an error that no-one cares about. (EINPROGRESS)");
 			} else if(written == -1) {

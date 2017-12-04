@@ -139,7 +139,7 @@ do { \
 struct buffer1k {
 	ssize_t length;
 	size_t  startIndex;
-	uint8_t buf[1024];
+	uint8_t buf[16*1024]; //16KiB buffer
 };
 struct fd_setcollection {
 	fd_set read;
