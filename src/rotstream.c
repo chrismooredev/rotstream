@@ -100,11 +100,14 @@ int main(int argc, char* argv[]) {
 			//tprintf("Waiting for connection...\n");
 			_printf(".");
 		} else if(ready == -1) {
-			if(LAST_ERROR != EBADF) {
-				ExitErrno(200, false);
-			} else {
+			if(LAST_ERROR == EINTR){
+				IFLOG(LOG_CONNHAND)
+					tnprintf("select() interrupted, trying again.");
+			} else if(LAST_ERROR == EBADF) {
 				//TODO: Remove bad FD
 				tprintf("Must remove bad FD from socket\n");
+			} else {
+				ExitErrno(200, false);
 			}
 		} else {
 			IFLOG(LOG_CONNHAND) tnprintf("Handling %d connection%s...", ready, ready != 1 ? "s" : "");
