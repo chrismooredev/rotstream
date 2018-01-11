@@ -163,7 +163,7 @@ void printVersion(const char* binaryName){
 		#define PLATFORM "unknown-os"
 	#endif
 	//#define PLATFORM lolz
-	tnprintf("%s: Version %d.%d (" STRINGIZE(PLATFORM) " %s build)", binaryName, VERSION_MAJOR, VERSION_MINOR, (DEBUG ? "debug" : "release"));
+	tnprintf("%s: Version %d.%d " STRINGIZE(VERSION_BUILD) " (" STRINGIZE(PLATFORM) " %s build)", binaryName, VERSION_MAJOR, VERSION_MINOR, (DEBUG ? "debug" : "release"));
 }
 void printCopyright(const char* binaryName){
 	tnprintf("All rights reserved.");
